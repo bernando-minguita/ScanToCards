@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPen, QPixmap
@@ -30,8 +29,8 @@ THUMB_HEIGHT = 140
 class GalleryFilter:
     """Filter criteria for the gallery."""
     text: str = ""
-    doc_type: Optional[DocumentType] = None
-    page: Optional[int] = None
+    doc_type: DocumentType | None = None
+    page: int | None = None
     included_only: bool = False
     orientation_confident_only: bool = False
 
@@ -52,9 +51,7 @@ class GalleryFilter:
             return False
         if self.included_only and not card.included:
             return False
-        if self.orientation_confident_only and not card.orientation_confident:
-            return False
-        return True
+        return not (self.orientation_confident_only and not card.orientation_confident)
 
 
 class CardItemDelegate(QStyledItemDelegate):
@@ -62,13 +59,13 @@ class CardItemDelegate(QStyledItemDelegate):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._pixmaps: Dict[str, QPixmap] = {}
+        self._pixmaps: dict[str, QPixmap] = {}
         # Scaled thumbnails, keyed by (card id, target size).  The delegate
         # paints the same tiles on every repaint (selection, hover, scroll),
         # so repeating the smooth resize in paint() shows up as visible jank.
-        self._scaled: Dict[tuple, QPixmap] = {}
+        self._scaled: dict[tuple, QPixmap] = {}
 
-    def invalidate(self, card_id: Optional[str] = None) -> None:
+    def invalidate(self, card_id: str | None = None) -> None:
         if card_id is None:
             self._pixmaps.clear()
             self._scaled.clear()
@@ -89,7 +86,7 @@ class CardItemDelegate(QStyledItemDelegate):
         self._scaled = {key: value for key, value in self._scaled.items() if key[0] in keep_ids}
 
 
-    def sizeHint(self, option, index) -> QSize:  # noqa: N802 - Qt naming
+    def sizeHint(self, option, index) -> QSize:
         return ITEM_SIZE
 
     def _pixmap_for(self, card: DetectedCard) -> QPixmap:
@@ -100,8 +97,8 @@ class CardItemDelegate(QStyledItemDelegate):
         self._pixmaps[card.card_id] = pixmap
         return pixmap
 
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # noqa: N802
-        card: Optional[DetectedCard] = index.data(Qt.ItemDataRole.UserRole)
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+        card: DetectedCard | None = index.data(Qt.ItemDataRole.UserRole)
         if not isinstance(card, DetectedCard):
             super().paint(painter, option, index)
             return
@@ -220,8 +217,8 @@ class DocumentGallery(QListWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._delegate = CardItemDelegate(self)
-        self._cards: Dict[str, DetectedCard] = {}
-        self._all_cards: List[DetectedCard] = []
+        self._cards: dict[str, DetectedCard] = {}
+        self._all_cards: list[DetectedCard] = []
         self._filter = GalleryFilter()
         self.setObjectName("DocumentGallery")
         self.setItemDelegate(self._delegate)
@@ -241,9 +238,9 @@ class DocumentGallery(QListWidget):
     # ------------------------------------------------------------------- content
     def set_cards(
         self,
-        cards: List[DetectedCard],
+        cards: list[DetectedCard],
         selected_id: str = "",
-        filter_: Optional[GalleryFilter] = None,
+        filter_: GalleryFilter | None = None,
     ) -> None:
         """Rebuild the gallery from *cards* (optionally replacing the filter).
 
@@ -323,7 +320,7 @@ class DocumentGallery(QListWidget):
                 self._delegate.invalidate(card.card_id)
 
 
-    def item_for(self, card_id: str) -> Optional[QListWidgetItem]:
+    def item_for(self, card_id: str) -> QListWidgetItem | None:
         for row in range(self.count()):
             item = self.item(row)
             card = item.data(Qt.ItemDataRole.UserRole)

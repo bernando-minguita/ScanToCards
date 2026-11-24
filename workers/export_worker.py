@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Optional, Sequence
 
+import cv2
 from PySide6.QtCore import QThread, Signal
 
-from core.image_exporter import ExportOptions, ExportSummary, ImageExporter, suggest_output_dir
+from core.image_exporter import (
+    ExportOptions,
+    ExportSummary,
+    ImageExporter,
+    suggest_output_dir,
+)
 from core.models import DetectedCard
-from core.pdf_loader import PdfDocument
+from core.pdf_loader import PdfDocument, PdfError
 
 
 class ExportJob:
@@ -20,12 +26,12 @@ class ExportJob:
         # Snapshot the cards: the GUI keeps mutating the originals (rotate,
         # include, type change, geometry) while the export thread reads them -
         # the thread must see a frozen state, not a half-rotated one.
-        self.cards: List[DetectedCard] = [card.copy_card() for card in cards]
+        self.cards: list[DetectedCard] = [card.copy_card() for card in cards]
         # Password of an encrypted PDF (in memory only, not persisted).
         self.password = password or ""
 
     @property
-    def included_cards(self) -> List[DetectedCard]:
+    def included_cards(self) -> list[DetectedCard]:
         return [card for card in self.cards if card.included]
 
 
@@ -64,7 +70,7 @@ class ExportWorker(QThread):
                 job.pdf_path, self._options.output_dir, self._options.create_subfolder
             )
             self.progress.emit(processed, total_cards, f"Exporting {job.pdf_path.name}…")
-            document: Optional[PdfDocument] = None
+            document: PdfDocument | None = None
             try:
                 document = PdfDocument(job.pdf_path, password=job.password or None)
                 exporter = ImageExporter(self._options)
@@ -86,7 +92,7 @@ class ExportWorker(QThread):
                     if item.ok:
                         self.exported.emit(str(item.path))
                 processed += len(cards)
-            except Exception as exc:
+            except (PdfError, OSError, RuntimeError, ValueError, cv2.error, MemoryError) as exc:
                 summary.errors.append(f"{job.pdf_path.name}: {exc}")
                 self.failed.emit(f"{job.pdf_path.name}: {exc}")
             finally:

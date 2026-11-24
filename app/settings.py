@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import os
 import re
-import tempfile
 import shutil
+import tempfile
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, cast
+from typing import Any, cast
 
 from PySide6.QtCore import QStandardPaths
 
@@ -93,7 +94,7 @@ def _write_json_atomic(path: Path, data: Any) -> bool:
             except OSError:
                 pass
             raise
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError):
         return False
     return True
 
@@ -109,7 +110,8 @@ def _keep_corrupt_copy(path: Path) -> None:
             backup = path.with_name(f"{path.stem}.invalid-{index}{path.suffix}")
             index += 1
         shutil.move(str(path), str(backup))
-    except Exception:
+    except OSError:
+        # Best effort - if we can't move the corrupt file, just continue
         pass
 
 
@@ -161,24 +163,24 @@ class AppSettings:
     # --------------------------------------------------------------------- misc
     thumbnail_size: int = 420
     last_input_dir: str = ""
-    recent_files: List[str] = field(default_factory=list)
+    recent_files: list[str] = field(default_factory=list)
     # Most recently opened .dceproj file ("" = the project was never saved)
     last_project_path: str = ""
     # Export presets: [{"name": ..., "options": {...}}]
-    export_presets: List[Dict[str, Any]] = field(default_factory=list)
+    export_presets: list[dict[str, Any]] = field(default_factory=list)
     # User defined document types: [{"token": ..., "label": ..., "keywords": "a, b"}]
-    custom_document_types: List[Dict[str, Any]] = field(default_factory=list)
+    custom_document_types: list[dict[str, Any]] = field(default_factory=list)
     # Extra OCR keywords per type token (works for built-in types too)
-    type_keyword_overrides: Dict[str, List[str]] = field(default_factory=dict)
+    type_keyword_overrides: dict[str, list[str]] = field(default_factory=dict)
     # Tokens of types the user switched off on the settings page
-    disabled_document_types: List[str] = field(default_factory=list)
+    disabled_document_types: list[str] = field(default_factory=list)
 
     # ------------------------------------------------------------------ mapping
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AppSettings":
+    def from_dict(cls, data: dict[str, Any]) -> AppSettings:
         known = {item.name for item in fields(cls)}
         filtered = {key: value for key, value in (data or {}).items() if key in known}
         settings = cls()
@@ -200,7 +202,7 @@ class AppSettings:
 
     # -------------------------------------------------------------- persistence
     @classmethod
-    def load(cls) -> "AppSettings":
+    def load(cls) -> AppSettings:
         path = settings_path()
         try:
             if path.exists():
@@ -208,7 +210,7 @@ class AppSettings:
                     settings = cls.from_dict(json.load(handle))
                     settings.apply_document_types()
                     return settings
-        except Exception:
+        except (json.JSONDecodeError, OSError, KeyError, ValueError, TypeError):
             # The file could not be parsed/converted.  Keep the broken file for
             # diagnosis instead of silently overwriting the user's data with
             # defaults on the next save.
@@ -233,7 +235,7 @@ class AppSettings:
         DocumentType.set_custom_types(self.custom_document_types)
         DocumentType.set_disabled_tokens(self.disabled_document_types)
         DocumentType.set_extra_keywords(
-            cast(Dict[str, Sequence[str]], self.type_keyword_overrides)
+            cast(dict[str, Sequence[str]], self.type_keyword_overrides)
         )
 
     # kept for backwards compatibility
@@ -269,7 +271,7 @@ class AppSettings:
             return False
         self.type_keyword_overrides = overrides
         DocumentType.set_extra_keywords(
-            cast(Dict[str, Sequence[str]], self.type_keyword_overrides)
+            cast(dict[str, Sequence[str]], self.type_keyword_overrides)
         )
         return True
 
@@ -296,7 +298,7 @@ class AppSettings:
         DocumentType.set_disabled_tokens(self.disabled_document_types)
         return True
 
-    def add_custom_type(self, label: str, keywords: str = "") -> Optional[Dict[str, str]]:
+    def add_custom_type(self, label: str, keywords: str = "") -> dict[str, str] | None:
         """Add a user defined document type and register it immediately.
 
         Returns ``None`` when the name is empty or already used by an existing
@@ -349,10 +351,10 @@ class AppSettings:
         )
 
     # ----------------------------------------------------------- export presets
-    def export_preset_names(self) -> List[str]:
+    def export_preset_names(self) -> list[str]:
         return [p.get("name", "") for p in self.export_presets if p.get("name")]
 
-    def get_export_preset(self, name: str) -> Optional[ExportOptions]:
+    def get_export_preset(self, name: str) -> ExportOptions | None:
         for p in self.export_presets:
             if p.get("name") == name:
                 opts = p.get("options", {})

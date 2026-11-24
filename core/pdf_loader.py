@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Self
 
 import numpy as np
 
@@ -84,7 +84,7 @@ class PdfDocument:
     the underlying MuPDF handles are not safe to share between threads.
     """
 
-    def __init__(self, path: str | Path, password: Optional[str] = None) -> None:
+    def __init__(self, path: str | Path, password: str | None = None) -> None:
         self._path = Path(path)
         self._doc = None
         self._password = password or ""
@@ -115,13 +115,14 @@ class PdfDocument:
         except Exception as exc:  # corrupted / unsupported file
             raise PdfError(f"'{self._path.name}' is not a readable PDF file.\n{exc}") from exc
 
-        if getattr(doc, "is_encrypted", False) or doc.needs_pass:
-            if not self._password or not doc.authenticate(self._password):
-                doc.close()
-                raise PdfError(
-                    f"'{self._path.name}' is password protected.\n"
-                    "Remove the password (or supply it) and try again."
-                )
+        if (getattr(doc, "is_encrypted", False) or doc.needs_pass) and (
+            not self._password or not doc.authenticate(self._password)
+        ):
+            doc.close()
+            raise PdfError(
+                f"'{self._path.name}' is password protected.\n"
+                "Remove the password (or supply it) and try again."
+            )
         if doc.page_count == 0:
             doc.close()
             raise PdfError(f"'{self._path.name}' does not contain any page.")
@@ -153,7 +154,7 @@ class PdfDocument:
             dpi = 0.0
         self._image = image
         self._frames = max(1, frames)
-        self._image_dpi = int(round(dpi)) if dpi >= 36 else DEFAULT_IMAGE_DPI
+        self._image_dpi = round(dpi) if dpi >= 36 else DEFAULT_IMAGE_DPI
 
     def close(self) -> None:
         if self._doc is not None:
@@ -168,7 +169,7 @@ class PdfDocument:
                 self._image = None
         self._page_cache.clear()
 
-    def __enter__(self) -> "PdfDocument":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc_info) -> None:
@@ -177,7 +178,7 @@ class PdfDocument:
     def __del__(self) -> None:  # pragma: no cover - defensive cleanup
         try:
             self.close()
-        except Exception:
+        except (OSError, RuntimeError):
             pass
 
     # ------------------------------------------------------------------ metadata
@@ -222,7 +223,7 @@ class PdfDocument:
             return {}
         try:
             return dict(self._doc.metadata or {})
-        except Exception:
+        except (RuntimeError, ValueError, TypeError):
             return {}
 
     def _page(self, index: int):
@@ -300,8 +301,8 @@ class PdfDocument:
             scale = float(dpi) / float(self._image_dpi or DEFAULT_IMAGE_DPI)
             if scale < 0.999:
                 size = (
-                    max(1, int(round(frame.width * scale))),
-                    max(1, int(round(frame.height * scale))),
+                    max(1, round(frame.width * scale)),
+                    max(1, round(frame.height * scale)),
                 )
                 resample = getattr(Image, "Resampling", Image).LANCZOS
                 frame = frame.resize(size, resample)
@@ -332,7 +333,7 @@ class PdfDocument:
                 xref = info[0]
                 try:
                     rects = page.get_image_rects(xref)
-                except Exception:
+                except (RuntimeError, ValueError, IndexError):
                     rects = []
                 if not rects:
                     continue
@@ -344,8 +345,8 @@ class PdfDocument:
                     if width_in <= 0 or height_in <= 0:
                         continue
                     best = max(best, pixel_width / width_in, pixel_height / height_in)
-            return int(round(best))
-        except Exception:
+            return round(best)
+        except (RuntimeError, ValueError, TypeError, IndexError):
             return 0
 
     def effective_dpi(self, index: int, requested_dpi: int, cap_to_native: bool = True) -> int:

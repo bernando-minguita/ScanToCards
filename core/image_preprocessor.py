@@ -8,7 +8,6 @@ uneven lighting, colour casts or how light the cards themselves are.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -33,7 +32,7 @@ class MaskBundle:
     gray: np.ndarray
     normalized: np.ndarray
     gradient: np.ndarray  # float32 gradient magnitude, normalised to 0..1
-    masks: List[Tuple[str, np.ndarray, float]] = field(default_factory=list)
+    masks: list[tuple[str, np.ndarray, float]] = field(default_factory=list)
 
 
 def to_gray(image: np.ndarray) -> np.ndarray:
@@ -51,7 +50,7 @@ def to_gray(image: np.ndarray) -> np.ndarray:
 
 
 def _odd(value: float, minimum: int = 3, maximum: int = 999) -> int:
-    value = int(round(value))
+    value = round(value)
     value = max(minimum, min(maximum, value))
     if value % 2 == 0:
         value += 1
@@ -130,11 +129,11 @@ def fill_holes(mask: np.ndarray) -> np.ndarray:
     return filled[1:-1, 1:-1]
 
 
-def adaptive_masks(normalized: np.ndarray, sensitivity: int) -> List[Tuple[str, np.ndarray, float]]:
+def adaptive_masks(normalized: np.ndarray, sensitivity: int) -> list[tuple[str, np.ndarray, float]]:
     """Adaptive threshold masks (dark surroundings and light surroundings)."""
     short_side = min(normalized.shape[:2])
     block = _odd(short_side / 14.0, minimum=25, maximum=151)
-    c_value = int(round(12 - sensitivity))  # higher sensitivity -> more foreground
+    c_value = round(12 - sensitivity)  # higher sensitivity -> more foreground
     inverse = cv2.adaptiveThreshold(
         normalized, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, block, max(1, c_value)
     )
@@ -149,7 +148,7 @@ def adaptive_masks(normalized: np.ndarray, sensitivity: int) -> List[Tuple[str, 
     ]
 
 
-def otsu_masks(normalized: np.ndarray) -> List[Tuple[str, np.ndarray, float]]:
+def otsu_masks(normalized: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
     """Global Otsu threshold in both polarities (works on clean scans)."""
     short_side = min(normalized.shape[:2])
     blurred = cv2.GaussianBlur(normalized, (5, 5), 0)
@@ -163,7 +162,7 @@ def otsu_masks(normalized: np.ndarray) -> List[Tuple[str, np.ndarray, float]]:
     ]
 
 
-def edge_masks(normalized: np.ndarray, sensitivity: int) -> List[Tuple[str, np.ndarray, float]]:
+def edge_masks(normalized: np.ndarray, sensitivity: int) -> list[tuple[str, np.ndarray, float]]:
     """Edge based card detection.
 
     The physical card outline is the most reliable cue for light cards on a light
@@ -174,8 +173,8 @@ def edge_masks(normalized: np.ndarray, sensitivity: int) -> List[Tuple[str, np.n
     """
     short_side = min(normalized.shape[:2])
     blur = cv2.GaussianBlur(normalized, (5, 5), 0)
-    low = int(round(16 + (10 - sensitivity) * 2.2))
-    high = int(round(low * 3))
+    low = round(16 + (10 - sensitivity) * 2.2)
+    high = round(low * 3)
     kernel_size = _odd(short_side / 300.0, minimum=3, maximum=15)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
 
@@ -195,7 +194,7 @@ def edge_masks(normalized: np.ndarray, sensitivity: int) -> List[Tuple[str, np.n
     return [("edge", edges, 1.0), ("gradient", strong, 0.85)]
 
 
-def color_mask(image: np.ndarray) -> List[Tuple[str, np.ndarray, float]]:
+def color_mask(image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
     """Saturation mask that isolates coloured cards from a neutral platen."""
     if image is None or image.ndim != 3 or image.shape[2] < 3:
         return []
@@ -239,7 +238,7 @@ def build_masks(image: np.ndarray, config: PreprocessConfig | None = None) -> Ma
     normalized = normalize_illumination(gray)
     gradient = gradient_magnitude(normalized)
 
-    masks: List[Tuple[str, np.ndarray, float]] = []
+    masks: list[tuple[str, np.ndarray, float]] = []
     masks.extend(adaptive_masks(normalized, sensitivity))
     masks.extend(otsu_masks(normalized))
     masks.extend(edge_masks(normalized, sensitivity))

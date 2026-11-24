@@ -7,7 +7,12 @@ import pytest
 from PIL import Image
 
 from core.document_classifier import DocumentClassifier, extract_identifier
-from core.image_exporter import ExportOptions, ImageExporter, sanitize_filename, suggest_output_dir
+from core.image_exporter import (
+    ExportOptions,
+    ImageExporter,
+    sanitize_filename,
+    suggest_output_dir,
+)
 from core.models import DetectedCard, DocumentType
 from core.perspective_corrector import (
     expand_quad,
@@ -209,7 +214,7 @@ def test_face_detector_prefers_yunet_when_the_model_is_present(monkeypatch, tmp_
         def __init__(self) -> None:
             self.size = None
 
-        def setInputSize(self, size):  # noqa: N802 - OpenCV naming
+        def setInputSize(self, size):
             self.size = size
 
         def detect(self, image):
@@ -812,8 +817,8 @@ def test_ocr_diagnostic_report_mentions_the_engine():
 def test_keyword_tables_have_no_duplicates():
     """Guard against copy/paste duplicates in the classifier keyword tables."""
     from core.document_classifier import (
-        KEYWORD_RULES,
         _ARABIC_RULES,
+        KEYWORD_RULES,
         prepare_ocr_text,
     )
 
@@ -840,7 +845,7 @@ def test_keyword_tables_have_no_duplicates():
 
 def test_keyword_overlaps_stay_within_one_document_type():
     """Keywords may be prefixes of each other, but never across two types."""
-    from core.document_classifier import KEYWORD_RULES, _ARABIC_RULES, prepare_ocr_text
+    from core.document_classifier import _ARABIC_RULES, KEYWORD_RULES, prepare_ocr_text
 
     rules = list(KEYWORD_RULES) + list(_ARABIC_RULES)
     for short, short_type, _w in rules:

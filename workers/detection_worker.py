@@ -3,23 +3,24 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence
 
+import cv2
 from PySide6.QtCore import QThread, Signal
 
-from core.card_detector import CardDetector, DetectionConfig, candidate_to_card
 from core.barcode_reader import BarcodeReader, refine_identifier
+from core.card_detector import CardDetector, DetectionConfig, candidate_to_card
 from core.document_classifier import DocumentClassifier
 from core.image_preprocessor import resize_max_dim
 from core.models import DetectedCard
 from core.ocr_engine import OcrEngine
 from core.orientation_detector import OrientationDetector
-from core.pdf_loader import PdfDocument
+from core.pdf_loader import PdfDocument, PdfError
 from core.perspective_corrector import make_thumbnail, rotate_image, warp_quad
 
 
-def ocr_report(engine: Optional[OcrEngine], cards_read: int, total_cards: int) -> str:
+def ocr_report(engine: OcrEngine | None, cards_read: int, total_cards: int) -> str:
     """Human readable summary of what OCR did during a run (for the status bar)."""
     if engine is None:
         return ""
@@ -68,11 +69,11 @@ class DetectionWorker(QThread):
 
     # --------------------------------------------------------------------- run
     def run(self) -> None:
-        document: Optional[PdfDocument] = None
+        document: PdfDocument | None = None
         total_cards = 0
         try:
             document = PdfDocument(self._pdf_path, password=self._password or None)
-        except Exception as exc:
+        except (PdfError, OSError, RuntimeError, ValueError) as exc:
             self.failed.emit(str(exc))
             self.finished_ok.emit(0)
             return
@@ -121,7 +122,7 @@ class DetectionWorker(QThread):
                         page_cards += 1
                         self.card_found.emit(card)
                     del working, page_image
-                except Exception as exc:  # a broken page must not stop the batch
+                except (PdfError, OSError, RuntimeError, ValueError, cv2.error) as exc:  # a broken page must not stop the batch
                     self.failed.emit(f"Page {page_index + 1}: {exc}")
                 self.page_finished.emit(page_index, page_cards)
 
@@ -133,7 +134,7 @@ class DetectionWorker(QThread):
             self.ocr_report = ocr_report(ocr_engine, ocr_cards, total_cards)
             self.progress.emit(len(pages), len(pages), "Detection finished")
             self.finished_ok.emit(total_cards)
-        except Exception as exc:  # pragma: no cover - defensive
+        except (RuntimeError, ValueError, OSError, MemoryError) as exc:  # pragma: no cover - defensive
             self.failed.emit(str(exc))
             self.finished_ok.emit(total_cards)
         finally:
@@ -158,9 +159,9 @@ class DetectionWorker(QThread):
         card: DetectedCard,
         page_image,
         orientation: OrientationDetector,
-        ocr_engine: Optional[OcrEngine],
-        classifier: Optional[DocumentClassifier],
-        barcode_reader: Optional["BarcodeReader"],
+        ocr_engine: OcrEngine | None,
+        classifier: DocumentClassifier | None,
+        barcode_reader: BarcodeReader | None,
     ):
         """Warp the card, fix its orientation and (optionally) classify it.
 
@@ -216,7 +217,7 @@ class DetectionWorker(QThread):
                 card.identifier = result.identifier
                 if result.reason:
                     card.notes = result.reason
-            except Exception as exc:
+            except (RuntimeError, ValueError, OSError, AttributeError) as exc:
                 card.notes = f"Classification skipped: {exc}"
 
         if not self._cancel_requested and barcode_reader is not None and barcode_reader.is_available:

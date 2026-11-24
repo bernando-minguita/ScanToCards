@@ -7,12 +7,10 @@ usage error (a traceback is never acceptable).
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
-
 
 def parse_page_range(
-    text: str, page_count: Optional[int] = None
-) -> Tuple[List[int], List[str]]:
+    text: str, page_count: int | None = None
+) -> tuple[list[int], list[str]]:
     """Parse ``"1,3,5-7"`` into ``(zero-based indices, rejected chunks)``.
 
     * An empty *text* means "every page" (only when *page_count* is known).
@@ -28,8 +26,8 @@ def parse_page_range(
         return (list(range(page_count)) if page_count is not None else []), []
 
     limit = None if page_count is None else max(1, int(page_count))
-    indices: List[int] = []
-    rejected: List[str] = []
+    indices: list[int] = []
+    rejected: list[str] = []
 
     for chunk in str(text).split(","):
         chunk = chunk.strip()
@@ -58,7 +56,7 @@ def parse_page_range(
     return sorted(set(indices)), rejected
 
 
-def _to_int(value: str) -> Optional[int]:
+def _to_int(value: str) -> int | None:
     """``int(value)`` or ``None`` for anything that is not a plain number."""
     text = (value or "").strip()
     if not text:

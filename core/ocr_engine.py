@@ -20,9 +20,10 @@ import os
 import shutil
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import ClassVar
 
 import cv2
 import numpy as np
@@ -34,7 +35,7 @@ class OcrWord:
 
     text: str
     confidence: float = 0.0
-    box: Optional[np.ndarray] = None
+    box: np.ndarray | None = None
 
 
 @dataclass
@@ -42,7 +43,7 @@ class OcrResult:
     """Aggregated OCR output for one image."""
 
     text: str = ""
-    words: List[OcrWord] = field(default_factory=list)
+    words: list[OcrWord] = field(default_factory=list)
     mean_confidence: float = 0.0
     engine: str = ""
 
@@ -77,7 +78,7 @@ _TESSERACT_LANGUAGES = {
 
 def tesseract_language_string(languages: Sequence[str]) -> str:
     """Map ``["en", "ar"]`` to the Tesseract notation ``"eng+ara"``."""
-    mapped: List[str] = []
+    mapped: list[str] = []
     for language in languages or ("en",):
         code = str(language).strip().lower().replace("_", "-").split("-")[0]
         if not code:
@@ -87,9 +88,9 @@ def tesseract_language_string(languages: Sequence[str]) -> str:
     return "+".join(unique) if unique else "eng"
 
 
-def easyocr_language_list(languages: Sequence[str]) -> List[str]:
+def easyocr_language_list(languages: Sequence[str]) -> list[str]:
     """Normalise the configured languages for EasyOCR (``en``, ``ar``, …)."""
-    result: List[str] = []
+    result: list[str] = []
     for language in languages or ("en",):
         code = str(language).strip().lower().replace("_", "-").split("-")[0]
         if code and code not in result:
@@ -100,13 +101,13 @@ def easyocr_language_list(languages: Sequence[str]) -> List[str]:
 class OcrEngine:
     """Lazy, thread-safe façade over the available OCR backends."""
 
-    _reader_cache: dict = {}
-    _lock = threading.Lock()
+    _reader_cache: ClassVar[dict] = {}
+    _lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __init__(self, languages: Sequence[str] = ("en",), prefer: str = "auto") -> None:
         self.languages = [str(lang) for lang in (languages or ("en",))]
         self.prefer = prefer
-        self._backend: Optional[str] = None
+        self._backend: str | None = None
         self._reader = None
         self._init_error = ""
 
@@ -125,7 +126,7 @@ class OcrEngine:
                 if os.path.exists(path):
                     pytesseract.pytesseract.tesseract_cmd = path
                     return True
-        except Exception:
+        except (ImportError, AttributeError, OSError):
             return False
         return False
 
@@ -133,7 +134,7 @@ class OcrEngine:
     def easyocr_available() -> bool:
         try:
             import easyocr  # noqa: F401
-        except Exception:
+        except ImportError:
             return False
         return True
 
@@ -345,15 +346,15 @@ class OcrEngine:
                 data = pytesseract.image_to_data(
                     rgb, output_type=Output.DICT, lang=language
                 )
-            except Exception:
+            except (RuntimeError, OSError, ValueError):
                 # the requested language data is not installed - fall back to the
                 # Tesseract default instead of failing the whole card
                 data = pytesseract.image_to_data(rgb, output_type=Output.DICT)
-        except Exception as exc:  # pragma: no cover - machine dependent
+        except (RuntimeError, OSError, ValueError, ImportError) as exc:  # pragma: no cover - machine dependent
             self._init_error = str(exc)
             return OcrResult(engine="tesseract")
-        words: List[OcrWord] = []
-        confidences: List[float] = []
+        words: list[OcrWord] = []
+        confidences: list[float] = []
         for index, text in enumerate(data.get("text", [])):
             text = (text or "").strip()
             if not text:
@@ -372,11 +373,11 @@ class OcrEngine:
         try:
             reader = self._get_easyocr_reader()
             raw = reader.readtext(image, detail=1, paragraph=False)
-        except Exception as exc:
+        except (RuntimeError, ValueError, OSError, TypeError, AttributeError) as exc:
             self._init_error = str(exc)
             return OcrResult(engine="easyocr")
-        words: List[OcrWord] = []
-        confidences: List[float] = []
+        words: list[OcrWord] = []
+        confidences: list[float] = []
         for entry in raw:
             try:
                 box, text, confidence = entry[0], entry[1], entry[2]
@@ -391,7 +392,7 @@ class OcrEngine:
         return _build_result(words, confidences, "easyocr")
 
 
-def _build_result(words: List[OcrWord], confidences: List[float], engine: str) -> OcrResult:
+def _build_result(words: list[OcrWord], confidences: list[float], engine: str) -> OcrResult:
     text = " ".join(word.text for word in words)
     mean_confidence = float(np.mean(confidences)) if confidences else 0.0
     return OcrResult(text=text, words=words, mean_confidence=mean_confidence, engine=engine)

@@ -9,8 +9,8 @@ borders) using intersection-over-union and containment tests.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -48,7 +48,7 @@ class DetectionConfig:
     denoise_level: int = 1
 
     @classmethod
-    def from_settings(cls, settings) -> "DetectionConfig":
+    def from_settings(cls, settings) -> DetectionConfig:
         """Build a config from the application settings object."""
         return cls(
             sensitivity=int(getattr(settings, "detection_sensitivity", 5)),
@@ -71,10 +71,10 @@ class Candidate:
     source: str
     area_ratio: float = 0.0
     aspect_ratio: float = 1.0
-    metrics: Dict[str, float] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
 
     @property
-    def center(self) -> Tuple[float, float]:
+    def center(self) -> tuple[float, float]:
         return float(self.quad[:, 0].mean()), float(self.quad[:, 1].mean())
 
     @property
@@ -109,11 +109,11 @@ def candidate_to_card(
 class CardDetector:
     """Detects document cards on a rendered PDF page."""
 
-    def __init__(self, config: Optional[DetectionConfig] = None) -> None:
+    def __init__(self, config: DetectionConfig | None = None) -> None:
         self.config = config or DetectionConfig()
 
     # ------------------------------------------------------------------ public
-    def detect(self, image: np.ndarray) -> List[Candidate]:
+    def detect(self, image: np.ndarray) -> list[Candidate]:
         """Return the validated, de-duplicated card candidates of *image*."""
         if image is None or image.size == 0:
             return []
@@ -121,7 +121,7 @@ class CardDetector:
         page_area = float(height * width)
 
         bundle = build_masks(image, self.config.preprocess_config())
-        candidates: List[Candidate] = []
+        candidates: list[Candidate] = []
         for name, mask, weight in bundle.masks:
             candidates.extend(self._candidates_from_mask(name, mask, weight, bundle, page_area))
 
@@ -142,8 +142,8 @@ class CardDetector:
         weight: float,
         bundle: MaskBundle,
         page_area: float,
-    ) -> List[Candidate]:
-        height, width = mask.shape[:2]
+    ) -> list[Candidate]:
+        _height, _width = mask.shape[:2]
         min_area = self.config.min_area_ratio * page_area
         max_area = self.config.max_area_ratio * page_area
 
@@ -155,7 +155,7 @@ class CardDetector:
         work[:, -2:] = 0
 
         contours, _ = cv2.findContours(work, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        results: List[Candidate] = []
+        results: list[Candidate] = []
         for contour in contours:
             area = abs(float(cv2.contourArea(contour)))
             if area < min_area or area > max_area:
@@ -168,7 +168,7 @@ class CardDetector:
                 results.append(scored)
         return results
 
-    def _quad_from_contour(self, contour: np.ndarray) -> Optional[np.ndarray]:
+    def _quad_from_contour(self, contour: np.ndarray) -> np.ndarray | None:
         perimeter = cv2.arcLength(contour, True)
         if perimeter <= 0:
             return None
@@ -193,7 +193,7 @@ class CardDetector:
         bundle: MaskBundle,
         weight: float,
         source: str,
-    ) -> Optional[Candidate]:
+    ) -> Candidate | None:
         """Validate a quad and compute its confidence score (``0..1``)."""
         height, width = bundle.gradient.shape[:2]
         quad_w, quad_h = quad_size(quad)
@@ -279,7 +279,7 @@ class CardDetector:
         height, width = gradient.shape[:2]
         diagonal = float(np.hypot(width, height))
         max_shift = max(2, int(diagonal * 0.012))
-        lines: List[Tuple[np.ndarray, np.ndarray, float]] = []
+        lines: list[tuple[np.ndarray, np.ndarray, float]] = []
 
         for index in range(4):
             p1 = quad[index].astype(np.float64)
@@ -291,15 +291,15 @@ class CardDetector:
             direction = edge / length
             normal = np.array([-direction[1], direction[0]], dtype=np.float64)
             offsets = np.arange(-max_shift, max_shift + 0.5, 1.0)
-            samples: List[np.ndarray] = []
+            samples: list[np.ndarray] = []
             for t in np.linspace(0.12, 0.88, 24):
                 base = p1 + direction * (t * length)
                 best_value = 0.0
                 best_offset = 0.0
                 for offset in offsets:
                     point = base + normal * offset
-                    x = int(round(point[0]))
-                    y = int(round(point[1]))
+                    x = round(point[0])
+                    y = round(point[1])
                     if x < 1 or y < 1 or x >= width - 1 or y >= height - 1:
                         continue
                     value = float(gradient[y - 1 : y + 2, x - 1 : x + 2].max())
@@ -336,7 +336,7 @@ class CardDetector:
         return order_quad_points(refined_quad)
 
     # ------------------------------------------------------------------ merging
-    def _expand_merged(self, candidates: Sequence[Candidate]) -> List[Candidate]:
+    def _expand_merged(self, candidates: Sequence[Candidate]) -> list[Candidate]:
         """Replace a region that merged two neighbouring cards by the two cards.
 
         Shadows or a very small gap between two cards can join them into a single
@@ -346,7 +346,7 @@ class CardDetector:
         """
         ordered = sorted(candidates, key=lambda c: c.area, reverse=True)
         removed: set = set()
-        expanded: List[Candidate] = []
+        expanded: list[Candidate] = []
         for parent in ordered:
             if id(parent) in removed:
                 continue
@@ -382,7 +382,7 @@ class CardDetector:
                 expanded.extend(best)
         return expanded
 
-    def _suppress(self, candidates: Sequence[Candidate]) -> List[Candidate]:
+    def _suppress(self, candidates: Sequence[Candidate]) -> list[Candidate]:
         """Resolve duplicates and nested rectangles.
 
         A document typically produces several nested candidates: the physical
@@ -392,10 +392,10 @@ class CardDetector:
         disjoint inner detections, and the inner ones are kept).
         """
         ordered = sorted(candidates, key=lambda c: c.confidence, reverse=True)
-        kept: List[Candidate] = []
+        kept: list[Candidate] = []
         for candidate in ordered:
             drop = False
-            superseded: List[int] = []
+            superseded: list[int] = []
             for index, existing in enumerate(kept):
                 if quad_iou(candidate.quad, existing.quad) >= self.config.merge_iou:
                     drop = True
@@ -428,7 +428,7 @@ class CardDetector:
         # When two disjoint inner detections already fill most of the outer
         # rectangle, the outer rectangle is a merged group of documents.
         coverage = 0.0
-        accepted: List[Candidate] = []
+        accepted: list[Candidate] = []
         for candidate in sorted(inner, key=lambda c: c.area, reverse=True):
             if candidate.area <= 0:
                 continue
@@ -447,20 +447,20 @@ class CardDetector:
 
 
 
-    def _sort_reading_order(self, candidates: Sequence[Candidate]) -> List[Candidate]:
+    def _sort_reading_order(self, candidates: Sequence[Candidate]) -> list[Candidate]:
         """Sort top-to-bottom, left-to-right so filenames follow the page layout."""
         if not candidates:
             return []
         ordered = sorted(candidates, key=lambda c: c.center[1])
         heights = [max(1.0, float(np.ptp(c.quad[:, 1]))) for c in ordered]
         tolerance = 0.45 * float(np.median(heights))
-        rows: List[List[Candidate]] = []
+        rows: list[list[Candidate]] = []
         for candidate in ordered:
             if rows and abs(candidate.center[1] - rows[-1][0].center[1]) <= tolerance:
                 rows[-1].append(candidate)
             else:
                 rows.append([candidate])
-        result: List[Candidate] = []
+        result: list[Candidate] = []
         for row in rows:
             result.extend(sorted(row, key=lambda c: c.center[0]))
         return result
@@ -513,14 +513,14 @@ def _edge_support(gradient: np.ndarray, quad: np.ndarray, samples_per_side: int 
     if gradient is None or gradient.size == 0:
         return 0.0
     height, width = gradient.shape[:2]
-    values: List[float] = []
+    values: list[float] = []
     for index in range(4):
         p1 = np.asarray(quad[index], dtype=np.float64)
         p2 = np.asarray(quad[(index + 1) % 4], dtype=np.float64)
         for t in np.linspace(0.03, 0.97, samples_per_side):
             point = p1 + (p2 - p1) * t
-            x = int(round(point[0]))
-            y = int(round(point[1]))
+            x = round(point[0])
+            y = round(point[1])
             if x < 1 or y < 1 or x >= width - 1 or y >= height - 1:
                 continue
             values.append(float(gradient[y - 1 : y + 2, x - 1 : x + 2].max()))

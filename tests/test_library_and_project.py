@@ -13,11 +13,8 @@ import json
 from pathlib import Path
 
 import numpy as np
-import pytest
 from PySide6.QtWidgets import QFileDialog
 
-from app.main_window import MainWindow
-from core.database import STATUS_EXTRACTED
 from core.models import DetectedCard, DocumentType
 
 
@@ -26,7 +23,7 @@ def _make_pdf(folder: Path, name: str, pages: int = 1) -> Path:
     try:
         import pymupdf as fitz
     except ImportError:
-        import fitz as fitz
+        import fitz
 
     path = folder / name
     doc = fitz.open()
@@ -124,7 +121,7 @@ def test_add_file_duplicate_not_added_twice(main_window, tmp_path, monkeypatch, 
 # ---------------------------------------------------------------------------
 def test_open_different_project_switches_cleanly(main_window, tmp_path, monkeypatch):
     """Open Project A, then open Project B; Project A files/regions must be unloaded."""
-    from core.database import ProjectStore, DetectedRegion
+    from core.database import DetectedRegion, ProjectStore
 
     # Create Project A with one PDF
     proj_a = tmp_path / "project_a.dceproj"

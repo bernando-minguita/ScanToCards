@@ -7,10 +7,10 @@ the shared ``HistoryStore`` and refreshes the page through delegates.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
-    QHBoxLayout,
     QWidget,
 )
 
@@ -28,7 +27,7 @@ from app.icons import button_icon, icon
 class HistoryPage(QWidget):
     """The extraction history table plus its toolbar."""
 
-    def __init__(self, main_window: "QMainWindow", parent: Optional[QWidget] = None) -> None:
+    def __init__(self, main_window: QMainWindow, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._mw = main_window
         self._build()

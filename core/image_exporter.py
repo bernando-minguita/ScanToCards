@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from . import face_detector
 from .models import DetectedCard, DocumentType
-from .pdf_loader import PdfDocument
+from .pdf_loader import PdfDocument, PdfError
 from .perspective_corrector import rotate_image, warp_quad
-
 
 SUPPORTED_FORMATS = {
     "jpg": ".jpg",
@@ -123,11 +122,11 @@ class ExportSummary:
     """Result of an export run."""
 
     output_dir: Path
-    files: List[ExportedFile] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    files: list[ExportedFile] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     #: Non fatal problems (e.g. face blur unavailable) - shown to the user but
     #: they do not turn a successful export into a failed one.
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def success_count(self) -> int:
@@ -182,7 +181,7 @@ class ImageExporter:
         identifier_fallback: int = 0,
     ) -> str:
         identifier = sanitize_filename(card.identifier) if card.identifier else f"{identifier_fallback:03d}"
-        values: Dict[str, str] = {
+        values: dict[str, str] = {
             "type": card.doc_type.file_token,
             "doc_type": card.doc_type.file_token,
             "identifier": identifier,
@@ -218,7 +217,7 @@ class ImageExporter:
         path.parent.mkdir(parents=True, exist_ok=True)
         pil_image = Image.fromarray(image) if image.ndim == 2 else Image.fromarray(image[:, :, ::-1])
         pil_format = self.options.pil_format()
-        save_kwargs: Dict[str, object] = {"dpi": (int(dpi), int(dpi))}
+        save_kwargs: dict[str, object] = {"dpi": (int(dpi), int(dpi))}
         if pil_format == "JPEG":
             if pil_image.mode != "RGB":
                 pil_image = pil_image.convert("RGB")
@@ -236,8 +235,8 @@ class ImageExporter:
         cards: Sequence[DetectedCard],
         output_dir: Path,
         start_sequence: int = 1,
-        progress: Optional[Callable[[int, int, str], None]] = None,
-        cancel_check: Optional[Callable[[], bool]] = None,
+        progress: Callable[[int, int, str], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> ExportSummary:
         """Export every included card that belongs to *document*."""
         summary = ExportSummary(output_dir=output_dir)
@@ -250,15 +249,13 @@ class ImageExporter:
         selected = [card for card in cards if card.included]
         total = len(selected)
         used: set = set()
-        identifier_fallback = 0
         sequence = start_sequence
 
-        for index, card in enumerate(selected):
+        for identifier_fallback, card in enumerate(selected, 1):
             if cancel_check is not None and cancel_check():
                 break
-            identifier_fallback += 1
             if progress is not None:
-                progress(index, total, f"Exporting page {card.page_number}…")
+                progress(identifier_fallback - 1, total, f"Exporting page {card.page_number}…")
             try:
                 image = extract_card_image(document, card, self.options.render_dpi, self.options.padding_ratio)
                 if self.options.apply_rotation and card.rotation:
@@ -277,7 +274,7 @@ class ImageExporter:
                             summary.warnings.append(reason)
                     else:
                         dpi = document.effective_dpi(card.page_index, self.options.render_dpi)
-                        min_face = max(16, int(round(self.options.min_face_size * dpi / 300.0)))
+                        min_face = max(16, round(self.options.min_face_size * dpi / 300.0))
                         image = blur_faces(image, self.options.face_blur_kernel, min_face)
 
                 stem = self.build_filename(card, sequence, document.stem, identifier_fallback)
@@ -296,7 +293,7 @@ class ImageExporter:
                 )
                 sequence += 1
                 del image
-            except Exception as exc:  # report per-file errors and keep going
+            except (PdfError, OSError, RuntimeError, ValueError, cv2.error, MemoryError, UnidentifiedImageError) as exc:  # report per-file errors and keep going
                 summary.files.append(
                     ExportedFile(
                         path=output_dir,

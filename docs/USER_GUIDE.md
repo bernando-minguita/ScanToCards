@@ -48,7 +48,7 @@ positions, and slightly rotated or skewed. Nothing is uploaded anywhere.
 │ id_card.png                │                                                          │
 │                            │  Recent files                             [ Clear list ] │
 │ OCR engine: …              │                                                          │
-│ Version 1.0.0 …            │  Pages: 0   Detected: 0   Approved: 0   [ progress ]     │
+│ Version 1.0.1 …            │  Pages: 0   Detected: 0   Approved: 0   [ progress ]     │
 └────────────────────────────┴──────────────────────────────────────────────────────────┘
 ```
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict
-
 from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
@@ -22,7 +20,7 @@ BUTTON_ICON_SIZE = 18
 _PIXMAP_SIZES = (16, 18, 20, 22, 24, 32, 48)
 
 # Feather style icons, 24x24 view box, stroke only.
-_ICONS: Dict[str, str] = {    "dashboard": '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
+_ICONS: dict[str, str] = {    "dashboard": '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
     '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     "extract": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>'
     '<path d="M8 15h5"/>',
@@ -83,7 +81,7 @@ def _stroke_width(size: int) -> float:
     return max(2.0, 1.7 * 24.0 / max(8, int(size)))
 
 
-_ICON_CACHE: Dict[str, QIcon] = {}
+_ICON_CACHE: dict[str, QIcon] = {}
 
 
 def pixmap(

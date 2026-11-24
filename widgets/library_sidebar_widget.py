@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -21,7 +19,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import styles
 from app.icons import icon
 from core.database import (
     STATUS_MISSING,
@@ -29,7 +26,6 @@ from core.database import (
     ProjectError,
     ProjectStore,
 )
-from core.pdf_loader import is_supported_file, supported_file_filter
 
 
 class LibrarySidebarWidget(QWidget):
@@ -42,7 +38,7 @@ class LibrarySidebarWidget(QWidget):
     #: A short status line for the main window's status bar.
     message = Signal(str)
 
-    def __init__(self, store: Optional[ProjectStore] = None, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, store: ProjectStore | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("LibrarySidebarPanel")
         self._store = store
@@ -114,12 +110,12 @@ class LibrarySidebarWidget(QWidget):
         self.refresh()
 
     # ------------------------------------------------------------------ store
-    def set_store(self, store: Optional[ProjectStore]) -> None:
+    def set_store(self, store: ProjectStore | None) -> None:
         self._store = store
         self.refresh()
 
     @property
-    def store(self) -> Optional[ProjectStore]:
+    def store(self) -> ProjectStore | None:
         return self._store
 
     # ------------------------------------------------------------------- view
@@ -233,8 +229,8 @@ class LibrarySidebarWidget(QWidget):
         )
         return lwi
 
-    def _selected_ids(self) -> List[int]:
-        ids: List[int] = []
+    def _selected_ids(self) -> list[int]:
+        ids: list[int] = []
         for item in self._list.selectedItems():
             value = item.data(Qt.ItemDataRole.UserRole)
             if value is not None:

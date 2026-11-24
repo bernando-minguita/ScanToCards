@@ -8,7 +8,6 @@ more reliably than OCR regexes.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
 import cv2
 import numpy as np
@@ -16,7 +15,7 @@ import numpy as np
 try:
     from pyzbar import pyzbar
     ZBAR_AVAILABLE = True
-except Exception:
+except ImportError:
     ZBAR_AVAILABLE = False
 
 
@@ -26,13 +25,13 @@ class BarcodeResult:
     data: str
     type: str
     rect: tuple  # (x, y, w, h)
-    polygon: List[tuple]
+    polygon: list[tuple]
 
 
 @dataclass
 class BarcodeReadout:
     """Aggregated result of barcode scanning on one image."""
-    barcodes: List[BarcodeResult]
+    barcodes: list[BarcodeResult]
     best_identifier: str = ""
 
     @property
@@ -40,7 +39,7 @@ class BarcodeReadout:
         return len(self.barcodes) > 0
 
 
-def refine_identifier(card, image: np.ndarray, reader: "BarcodeReader") -> bool:
+def refine_identifier(card, image: np.ndarray, reader: BarcodeReader) -> bool:
     """Prefer an ID-like QR/barcode value over the OCR-derived identifier.
 
     A QR code on a Saudi ID carries the authoritative national ID number, which
@@ -51,7 +50,7 @@ def refine_identifier(card, image: np.ndarray, reader: "BarcodeReader") -> bool:
         return False
     try:
         readout = reader.read(image)
-    except Exception:
+    except (RuntimeError, ValueError, OSError, TypeError):
         return False
     best = (readout.best_identifier or "").strip()
     if not best or not BarcodeReader._looks_like_id(best):
@@ -98,12 +97,12 @@ class BarcodeReader:
 
         try:
             decoded = pyzbar.decode(gray)
-        except Exception:
+        except (RuntimeError, ValueError, OSError, TypeError):
             # Communicating the failure via a fake "identifier" would leak
             # "Error: ..." into filenames - callers just see an empty readout.
             return BarcodeReadout(barcodes=[])
 
-        results: List[BarcodeResult] = []
+        results: list[BarcodeResult] = []
         for d in decoded:
             data = d.data.decode("utf-8", errors="ignore")
             results.append(BarcodeResult(
@@ -117,9 +116,7 @@ class BarcodeReader:
         best = ""
         for r in results:
             txt = r.data.strip()
-            if self._looks_like_id(txt) and not best:
-                best = txt
-            elif not best and txt:
+            if self._looks_like_id(txt) and not best or not best and txt:
                 best = txt
 
         return BarcodeReadout(barcodes=results, best_identifier=best)
@@ -129,6 +126,4 @@ class BarcodeReader:
         t = text.replace(" ", "").replace("-", "")
         if t.isdigit() and 8 <= len(t) <= 15:
             return True
-        if len(t) >= 6 and any(c.isdigit() for c in t) and any(c.isalpha() for c in t):
-            return True
-        return False
+        return bool(len(t) >= 6 and any(c.isdigit() for c in t) and any(c.isalpha() for c in t))

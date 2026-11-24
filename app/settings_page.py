@@ -12,8 +12,8 @@ the page calls back into it through ``self._mw``.
 
 from __future__ import annotations
 
+import urllib.error
 from pathlib import Path
-from typing import Dict, Optional
 
 import numpy as np
 from PySide6.QtCore import Qt
@@ -108,7 +108,7 @@ class SettingsPage(QWidget):
         "_type_grid",
     )
 
-    def __init__(self, main_window: "QMainWindow", parent: Optional[QWidget] = None) -> None:
+    def __init__(self, main_window: QMainWindow, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._mw = main_window
         self._suppress_preset_sync = False
@@ -389,7 +389,7 @@ class SettingsPage(QWidget):
         self._type_grid.setContentsMargins(0, 0, 0, 0)
         self._type_grid.setHorizontalSpacing(10)
         self._type_grid.setVerticalSpacing(8)
-        self._type_cells: Dict[str, Dict[str, object]] = {}
+        self._type_cells: dict[str, dict[str, object]] = {}
         types_layout.addWidget(self._type_grid_host)
 
         type_buttons = QHBoxLayout()
@@ -541,7 +541,7 @@ class SettingsPage(QWidget):
         self._mw._progress.set_message("Checking the OCR engine…")
         try:
             report = OcrEngine.diagnostic_report(tuple(languages), prefer=prefer)
-        except Exception as exc:  # pragma: no cover - defensive
+        except (RuntimeError, ValueError, OSError, ImportError) as exc:  # pragma: no cover - defensive
             report = f"The OCR check failed:\n{exc}"
         finally:
             QApplication.restoreOverrideCursor()
@@ -590,7 +590,7 @@ class SettingsPage(QWidget):
         self._mw._progress.set_message("Downloading the face model…")
         try:
             path = face_detector.download_model()
-        except Exception as exc:
+        except (RuntimeError, OSError, ValueError, urllib.error.URLError) as exc:
             QMessageBox.warning(
                 self,
                 "Face model",
@@ -714,7 +714,7 @@ class SettingsPage(QWidget):
         width = self._type_grid_host.width()
         return 1 if 0 < width < 620 else 2
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def resizeEvent(self, event) -> None:
         """Re-flow the type tiles when the window becomes narrow/wide.
 
         The grid is built while the page is still hidden (width 0), so the column

@@ -138,8 +138,9 @@ def main_window(qapp, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 def pump_until(predicate, timeout: float = 180.0) -> bool:
     """Run the Qt event loop until *predicate* is true (or the timeout passes)."""
-    from PySide6.QtWidgets import QApplication
     import time
+
+    from PySide6.QtWidgets import QApplication
 
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -152,8 +153,9 @@ def pump_until(predicate, timeout: float = 180.0) -> bool:
 
 def flush_events(rounds: int = 10, delay: float = 0.01) -> None:
     """Let deferred (zero-timer) work, modal dialogs and repaints complete."""
-    from PySide6.QtWidgets import QApplication
     import time
+
+    from PySide6.QtWidgets import QApplication
 
     for _ in range(rounds):
         QApplication.processEvents()

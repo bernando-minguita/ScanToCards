@@ -26,13 +26,12 @@ from __future__ import annotations
 import argparse
 import time
 from pathlib import Path
-from typing import List, Optional
 
 import cv2
 import numpy as np
 
-from core.card_detector import CardDetector, DetectionConfig, candidate_to_card
 from core.barcode_reader import BarcodeReader, refine_identifier
+from core.card_detector import CardDetector, DetectionConfig, candidate_to_card
 from core.document_classifier import DocumentClassifier
 from core.image_exporter import ExportOptions, ImageExporter, suggest_output_dir
 from core.image_preprocessor import resize_max_dim
@@ -43,7 +42,7 @@ from core.pdf_loader import PdfDocument, PdfError
 from core.perspective_corrector import make_thumbnail, rotate_image, warp_quad
 
 
-def parse_pages(text: str, page_count: int) -> List[int]:
+def parse_pages(text: str, page_count: int) -> list[int]:
     """Parse ``"1,3,5-7"`` into zero based page indices.
 
     Malformed parts are reported by :func:`main` through
@@ -80,7 +79,7 @@ def process_document(path: Path, args) -> int:
     except PdfError as exc:
         print(f"  ! {exc}")
         return 0
-    except Exception as exc:  # pragma: no cover - unexpected failure
+    except (OSError, RuntimeError, ValueError) as exc:  # pragma: no cover - unexpected failure
         print(f"  ! {path.name} could not be opened: {exc}")
         return 0
 
@@ -129,7 +128,7 @@ def process_document(path: Path, args) -> int:
         try:
             dpi = document.effective_dpi(page_index, args.dpi, cap_to_native=not args.no_cap)
             page_image = document.render_page(page_index, dpi=dpi)
-        except Exception as exc:
+        except (PdfError, OSError, RuntimeError, ValueError) as exc:
             print(f"  ! page {page_index + 1}: {exc}")
             continue
         working = resize_max_dim(page_image, args.work_dim)
@@ -200,7 +199,7 @@ def process_document(path: Path, args) -> int:
     return total_cards
 
 
-def check_ocr(languages: List[str]) -> int:
+def check_ocr(languages: list[str]) -> int:
     """Print a diagnostic report about the local OCR engines (``--check-ocr``)."""
     wanted = languages or ["en"]
     print("OCR diagnostics")
@@ -247,7 +246,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     languages = [item.strip() for item in str(args.ocr_languages or "en").split(",") if item.strip()]
     if args.check_ocr:

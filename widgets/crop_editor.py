@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
+import cv2
 import numpy as np
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QKeySequence, QUndoCommand, QUndoStack, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from app import styles
 from app.icons import apply_icon_size, icon
 from core.models import DetectedCard, DocumentType
-from core.pdf_loader import PdfDocument
+from core.pdf_loader import PdfDocument, PdfError
 from core.perspective_corrector import make_thumbnail, rotate_image, warp_quad
 from widgets.pdf_viewer import OverlaySpec, PdfPageView
 from widgets.qt_image import FitImageLabel, bgr_to_pixmap, bgr_to_qimage
@@ -50,7 +50,7 @@ class _CardState:
 class _CardEditCommand(QUndoCommand):
     """Undoable command for card property changes."""
 
-    def __init__(self, editor: "CropEditorDialog", old_state: _CardState, new_state: _CardState, text: str):
+    def __init__(self, editor: CropEditorDialog, old_state: _CardState, new_state: _CardState, text: str):
         super().__init__(text)
         self._editor = editor
         self._old_state = old_state
@@ -72,7 +72,7 @@ class CropEditorDialog(QDialog):
         self,
         pdf_path: Path,
         card: DetectedCard,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
         password: str = "",
         render_dpi: int = 300,
     ) -> None:
@@ -87,7 +87,7 @@ class CropEditorDialog(QDialog):
         self._render_dpi = max(1, int(render_dpi or 300))
         self._draft = card.copy_card()
         self._reset_source = card.copy_card()
-        self._page_image: Optional[np.ndarray] = None
+        self._page_image: np.ndarray | None = None
         self._load_error = ""
         self._rotate_base = 0.0
         # Undo/redo stack
@@ -95,7 +95,7 @@ class CropEditorDialog(QDialog):
         self._suppress_undo = False
         # State captured before the first keystroke in the Identifier field, so
         # the whole edit becomes a single undo step.
-        self._identifier_base: Optional["_CardState"] = None
+        self._identifier_base: _CardState | None = None
         # Rendering the cropped preview is expensive (full-page perspective
         # warp + a 1000 px thumbnail).  During a live rotation drag or while
         # nudging with the arrow keys it fires per mouse-move, so rebuilds are
@@ -119,7 +119,7 @@ class CropEditorDialog(QDialog):
         self._redo_alt_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Z"), self, self._redo_triggered)
 
     @staticmethod
-    def _focused_text_field() -> Optional[QLineEdit]:
+    def _focused_text_field() -> QLineEdit | None:
         from PySide6.QtWidgets import QApplication
 
         focus = QApplication.focusWidget()
@@ -148,7 +148,7 @@ class CropEditorDialog(QDialog):
         try:
             document = PdfDocument(self._pdf_path, password=self._password or None)
             self._page_image = document.render_page(self._draft.page_index, dpi=self.PREVIEW_DPI)
-        except Exception as exc:  # pragma: no cover - surfaced in the UI
+        except (PdfError, OSError, RuntimeError, ValueError) as exc:  # pragma: no cover - surfaced in the UI
             self._page_image = None
             self._load_error = str(exc)
         finally:
@@ -206,9 +206,7 @@ class CropEditorDialog(QDialog):
             return True
         if a.included != b.included:
             return True
-        if a.orientation_confident != b.orientation_confident:
-            return True
-        return False
+        return a.orientation_confident != b.orientation_confident
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -480,7 +478,7 @@ class CropEditorDialog(QDialog):
         quad = self._draft.effective_quad_pixels(width, height)
         try:
             cropped = warp_quad(self._page_image, quad)
-        except Exception:
+        except (ValueError, cv2.error, IndexError):
             return
         if self._draft.rotation:
             cropped = rotate_image(cropped, self._draft.rotation)

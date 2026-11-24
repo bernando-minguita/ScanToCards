@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, List, Optional, Sequence
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -19,7 +20,7 @@ def _normalise_token(text: str) -> str:
     return _TOKEN_PATTERN.sub("_", str(text).strip().lower()).strip("_")
 
 
-def _file_token_from(label: str, explicit: Optional[str]) -> str:
+def _file_token_from(label: str, explicit: str | None) -> str:
     """Filename friendly token from a label (``Driver's License`` -> ``DriversLicense``)."""
     raw = str(explicit or label or "Document").strip()
     cleaned = re.sub(r"[^A-Za-z0-9]+", "", raw)
@@ -42,20 +43,20 @@ class DocumentType:
         card.doc_type is DocumentType.IQAMA
     """
 
-    _registry: Dict[str, "DocumentType"] = {}
-    _custom_tokens: List[str] = []
-    _aliases: Dict[str, "DocumentType"] = {}
-    _disabled_tokens: set = set()
-    _extra_keywords: Dict[str, tuple] = {}
-    PASSPORT: ClassVar["DocumentType"]
-    IQAMA: ClassVar["DocumentType"]
-    ISTIMARA: ClassVar["DocumentType"]
-    DRIVING_LICENSE: ClassVar["DocumentType"]
-    HEALTH_INSURANCE: ClassVar["DocumentType"]
-    BANK_CARD: ClassVar["DocumentType"]
-    SALARY_CARD: ClassVar["DocumentType"]
-    NATIONAL_ID: ClassVar["DocumentType"]
-    UNKNOWN: ClassVar["DocumentType"]
+    _registry: ClassVar[dict[str, DocumentType]] = {}
+    _custom_tokens: ClassVar[list[str]] = []
+    _aliases: ClassVar[dict[str, DocumentType]] = {}
+    _disabled_tokens: ClassVar[set] = set()
+    _extra_keywords: ClassVar[dict[str, tuple]] = {}
+    PASSPORT: ClassVar[DocumentType]
+    IQAMA: ClassVar[DocumentType]
+    ISTIMARA: ClassVar[DocumentType]
+    DRIVING_LICENSE: ClassVar[DocumentType]
+    HEALTH_INSURANCE: ClassVar[DocumentType]
+    BANK_CARD: ClassVar[DocumentType]
+    SALARY_CARD: ClassVar[DocumentType]
+    NATIONAL_ID: ClassVar[DocumentType]
+    UNKNOWN: ClassVar[DocumentType]
 
     def __init__(
         self,
@@ -96,7 +97,7 @@ class DocumentType:
     def __repr__(self) -> str:
         return f"DocumentType({self.token!r})"
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, DocumentType):
             return other is self
         if isinstance(other, str):
@@ -112,11 +113,11 @@ class DocumentType:
         cls,
         token: str,
         label: str,
-        file_token: Optional[str] = None,
+        file_token: str | None = None,
         keywords: Sequence[str] = (),
         builtin: bool = False,
         replace: bool = False,
-    ) -> "DocumentType":
+    ) -> DocumentType:
         """Create (or return) the type identified by *token*.
 
         Built-in types can never be shadowed: a user defined type whose token is
@@ -159,10 +160,10 @@ class DocumentType:
         cls,
         token: str,
         label: str,
-        file_token: Optional[str],
+        file_token: str | None,
         keywords: Sequence[str],
         builtin: bool,
-    ) -> "DocumentType":
+    ) -> DocumentType:
         return cls(
             token=token,
             label=(label or token).strip(),
@@ -190,10 +191,10 @@ class DocumentType:
         cls._custom_tokens.clear()
 
     @classmethod
-    def set_custom_types(cls, entries: Sequence[Dict[str, Any]]) -> List["DocumentType"]:
+    def set_custom_types(cls, entries: Sequence[dict[str, Any]]) -> list[DocumentType]:
         """Replace the user defined types with *entries* (settings format)."""
         cls.reset_custom_types()
-        created: List["DocumentType"] = []
+        created: list[DocumentType] = []
         for entry in entries or []:
             if not isinstance(entry, dict):
                 continue
@@ -210,11 +211,11 @@ class DocumentType:
         return created
 
     @classmethod
-    def custom_types(cls) -> List["DocumentType"]:
+    def custom_types(cls) -> list[DocumentType]:
         return [cls._registry[token] for token in cls._custom_tokens if token in cls._registry]
 
     @classmethod
-    def builtin_types(cls) -> List["DocumentType"]:
+    def builtin_types(cls) -> list[DocumentType]:
         return [item for item in cls._registry.values() if item.builtin and item.token != "unknown"]
 
     # ------------------------------------------------------ enable / disable
@@ -227,14 +228,14 @@ class DocumentType:
 
     # -------------------------------------------------- extra OCR keywords
     @classmethod
-    def set_extra_keywords(cls, mapping: Optional[Dict[str, Sequence[str]]]) -> None:
+    def set_extra_keywords(cls, mapping: dict[str, Sequence[str]] | None) -> None:
         """Keywords the user added to a type (built-in *and* custom ones).
 
         They are matched **in addition** to the built-in keyword tables, which is
         how another language or an alternative spelling can be supported without
         touching the code.
         """
-        cleaned: Dict[str, tuple] = {}
+        cleaned: dict[str, tuple] = {}
         for token, values in (mapping or {}).items():
             key = _normalise_token(token)
             if not key:
@@ -267,7 +268,7 @@ class DocumentType:
         cls._extra_keywords = {}
 
     @classmethod
-    def disabled_tokens(cls) -> List[str]:
+    def disabled_tokens(cls) -> list[str]:
         return sorted(cls._disabled_tokens)
 
     @property
@@ -282,19 +283,19 @@ class DocumentType:
         return "built-in" if self.builtin else "custom"
 
     @classmethod
-    def all_choices(cls) -> List["DocumentType"]:
+    def all_choices(cls) -> list[DocumentType]:
         """Every type, regardless of the enable/disable state (settings page)."""
         return cls.builtin_types() + cls.custom_types() + [cls.UNKNOWN]
 
     @classmethod
-    def choices(cls) -> List["DocumentType"]:
+    def choices(cls) -> list[DocumentType]:
         """Enabled types offered for assignment (Unknown always last)."""
         return [item for item in cls.builtin_types() + cls.custom_types() if item.enabled] + [
             cls.UNKNOWN
         ]
 
     @classmethod
-    def from_value(cls, value: Any) -> "DocumentType":
+    def from_value(cls, value: Any) -> DocumentType:
         """Best effort conversion from a token or label (UI, settings, history)."""
         if isinstance(value, cls):
             return value
@@ -385,7 +386,7 @@ class DetectedCard:
     rotation: int = 0
     fine_rotation: float = 0.0  # extra deskew in degrees (-45..45, clockwise)
     included: bool = True
-    thumbnail: Optional[np.ndarray] = field(default=None, repr=False)
+    thumbnail: np.ndarray | None = field(default=None, repr=False)
     notes: str = ""
     orientation_confident: bool = True
     page_size: tuple = (0, 0)  # pixel size of the render the quad was detected on
@@ -478,7 +479,7 @@ class DetectedCard:
     def confidence_label(self) -> str:
         return f"{self.confidence * 100:.0f}%"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "card_id": self.card_id,
             "page_index": self.page_index,
@@ -498,7 +499,7 @@ class DetectedCard:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DetectedCard":
+    def from_dict(cls, data: dict[str, Any]) -> DetectedCard:
         page_size = data.get("page_size") or [0, 0]
         return cls(
             page_index=int(data.get("page_index", 0)),
@@ -518,7 +519,7 @@ class DetectedCard:
             card_id=str(data.get("card_id") or uuid.uuid4().hex[:8]),
         )
 
-    def copy_card(self) -> "DetectedCard":
+    def copy_card(self) -> DetectedCard:
         clone = DetectedCard.from_dict(self.to_dict())
         clone.thumbnail = None if self.thumbnail is None else self.thumbnail.copy()
         return clone
@@ -529,7 +530,7 @@ class PageDetection:
     """Detection result for a single page."""
 
     page_index: int
-    cards: List[DetectedCard] = field(default_factory=list)
+    cards: list[DetectedCard] = field(default_factory=list)
     error: str = ""
 
     @property

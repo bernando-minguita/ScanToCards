@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from app.settings import _write_json_atomic, settings_path
 
@@ -19,12 +19,12 @@ class HistoryEntry:
     """One finished export run."""
 
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
-    pdf_files: List[str] = field(default_factory=list)
+    pdf_files: list[str] = field(default_factory=list)
     output_dir: str = ""
     document_count: int = 0
     page_count: int = 0
-    files: List[str] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
     @property
     def display_time(self) -> str:
@@ -42,7 +42,7 @@ class HistoryEntry:
             return names[0]
         return f"{names[0]} (+{len(names) - 1} more)"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "pdf_files": list(self.pdf_files),
@@ -54,7 +54,7 @@ class HistoryEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "HistoryEntry":
+    def from_dict(cls, data: dict[str, Any]) -> HistoryEntry:
         return cls(
             str(data.get("timestamp", "")),
             [str(item) for item in data.get("pdf_files", [])],
@@ -71,11 +71,11 @@ class HistoryStore:
 
     def __init__(self, path: Path | None = None) -> None:
         self._path = path or (settings_path().parent / HISTORY_FILENAME)
-        self._entries: List[HistoryEntry] = []
+        self._entries: list[HistoryEntry] = []
         self.load()
 
     @property
-    def entries(self) -> List[HistoryEntry]:
+    def entries(self) -> list[HistoryEntry]:
         return list(self._entries)
 
     def load(self) -> None:
@@ -85,7 +85,7 @@ class HistoryStore:
                 with open(self._path, "r", encoding="utf-8") as handle:
                     data = json.load(handle)
                 self._entries = [HistoryEntry.from_dict(item) for item in data.get("entries", [])]
-        except Exception:
+        except (json.JSONDecodeError, OSError, KeyError, ValueError):
             self._entries = []
 
     def save(self) -> bool:
@@ -102,7 +102,7 @@ class HistoryStore:
         self._entries = []
         self.save()
 
-    def totals(self) -> Dict[str, int]:
+    def totals(self) -> dict[str, int]:
         return {
             "runs": len(self._entries),
             "documents": sum(entry.document_count for entry in self._entries),

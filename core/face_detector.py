@@ -23,8 +23,8 @@ import os
 import sys
 import tempfile
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -44,8 +44,8 @@ TOP_K = 5000
 MIN_MODEL_BYTES = 10_000
 
 _detector = None
-_detector_path: Optional[Path] = None
-_status_cache: Optional[Tuple[str, str]] = None
+_detector_path: Path | None = None
+_status_cache: tuple[str, str] | None = None
 
 
 # ------------------------------------------------------------------ model files
@@ -58,12 +58,12 @@ def model_folder() -> Path:
         from app.settings import data_folder  # lazy import: avoids an import cycle
 
         return data_folder() / "models"
-    except Exception:  # pragma: no cover - core used without the GUI/settings
+    except (ImportError, AttributeError):  # pragma: no cover - core used without the GUI/settings
         base = os.environ.get("LOCALAPPDATA") or str(Path.home())
         return Path(base) / "ScanToCards" / "models"
 
 
-def _application_roots() -> List[Path]:
+def _application_roots() -> list[Path]:
     """Folders that may contain the bundled ``assets`` directory.
 
     ``sys._MEIPASS`` is where PyInstaller unpacks a one-file bundle (and where it
@@ -71,23 +71,23 @@ def _application_roots() -> List[Path]:
     to the executable covers the older one-dir layout.  Running from source falls
     back to the project folder.
     """
-    roots: List[Path] = []
+    roots: list[Path] = []
     meipass = getattr(sys, "_MEIPASS", "")
     if meipass:
         roots.append(Path(meipass))
     if getattr(sys, "frozen", False):
         roots.append(Path(sys.executable).resolve().parent)
     roots.append(Path(__file__).resolve().parents[1])
-    unique: List[Path] = []
+    unique: list[Path] = []
     for root in roots:
         if root not in unique:
             unique.append(root)
     return unique
 
 
-def model_candidates() -> List[Path]:
+def model_candidates() -> list[Path]:
     """Every place a model file is accepted from, most specific first."""
-    candidates: List[Path] = []
+    candidates: list[Path] = []
     explicit = os.environ.get(MODEL_FILE_ENV_VAR)
     if explicit:
         candidates.append(Path(explicit))
@@ -100,7 +100,7 @@ def model_candidates() -> List[Path]:
     return candidates
 
 
-def find_model() -> Optional[Path]:
+def find_model() -> Path | None:
     """The first usable model file, or ``None``."""
     for path in model_candidates():
         try:
@@ -125,7 +125,7 @@ def can_download_model() -> bool:
     return _yunet_available() and find_model() is None
 
 
-def status() -> Tuple[str, str]:
+def status() -> tuple[str, str]:
     """Return ``(backend, message)``; *backend* is ``"yunet"``, ``"haar"`` or ``""``.
 
     The message is user facing: it is shown in the settings page and in the
@@ -141,17 +141,17 @@ def status() -> Tuple[str, str]:
     elif _yunet_available():
         _status_cache = (
             "",
-            f"OpenCV {version} needs the YuNet face model ({MODEL_FILENAME}); "
-            "download it once in Settings → face blur",
+            (f"OpenCV {version} needs the YuNet face model ({MODEL_FILENAME}); "
+            "download it once in Settings → face blur"),
         )
     elif _haar_available():
         _status_cache = ("haar", "OpenCV Haar cascade")
     else:
         _status_cache = (
             "",
-            f"face blur needs OpenCV's Haar cascade or the YuNet model, which "
+            (f"face blur needs OpenCV's Haar cascade or the YuNet model, which "
             f"OpenCV {version} does not provide - the images were exported "
-            "without blurring",
+            "without blurring"),
         )
     return _status_cache
 
@@ -203,7 +203,7 @@ def _create_yunet(model_path: Path):
         try:
             previous = logging_api.getLogLevel()
             logging_api.setLogLevel(getattr(logging_api, "LOG_LEVEL_SILENT", 0))
-        except Exception:  # pragma: no cover - older/odd OpenCV builds
+        except (AttributeError, RuntimeError):  # pragma: no cover - older/odd OpenCV builds
             previous = None
     try:
         return cv2.FaceDetectorYN.create(
@@ -213,13 +213,13 @@ def _create_yunet(model_path: Path):
         if previous is not None:
             try:
                 logging_api.setLogLevel(previous)
-            except Exception:  # pragma: no cover - best effort only
+            except (AttributeError, RuntimeError):  # pragma: no cover - best effort only
                 pass
 
 
 def detect_faces(
     image: np.ndarray, min_face_size: int = 40
-) -> List[Tuple[int, int, int, int]]:
+) -> list[tuple[int, int, int, int]]:
     """Return ``[(x, y, w, h), …]`` for every face found in *image* (BGR)."""
     if image is None or image.size == 0:
         return []
@@ -234,9 +234,9 @@ def detect_faces(
         _count, faces = detector.detect(bgr)
         if faces is None:
             return []
-        boxes: List[Tuple[int, int, int, int]] = []
+        boxes: list[tuple[int, int, int, int]] = []
         for row in faces:
-            x, y, w, h = (int(round(float(value))) for value in row[:4])
+            x, y, w, h = (round(float(value)) for value in row[:4])
             if w >= minimum and h >= minimum:
                 boxes.append((x, y, w, h))
         return boxes
@@ -250,9 +250,9 @@ def detect_faces(
 
 # --------------------------------------------------------------------- download
 def download_model(
-    destination: Optional[Path] = None,
+    destination: Path | None = None,
     timeout: float = 60.0,
-    opener: Optional[Callable] = None,
+    opener: Callable | None = None,
 ) -> Path:
     """Fetch the YuNet model (once) and return its path.
 

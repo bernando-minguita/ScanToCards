@@ -12,10 +12,8 @@ import json
 from pathlib import Path
 
 import numpy as np
-import pytest
 
-from app.main_window import MainWindow
-from core.database import DetectedRegion, ProjectStore, STATUS_EXTRACTED
+from core.database import DetectedRegion, ProjectStore
 from core.models import DetectedCard, DocumentType
 
 
@@ -23,7 +21,7 @@ def _make_pdf(folder: Path, name: str, pages: int = 1) -> Path:
     try:
         import pymupdf as fitz
     except ImportError:
-        import fitz as fitz
+        import fitz
 
     path = folder / name
     doc = fitz.open()

@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QLabel, QSizePolicy
 
 
-def bgr_to_qimage(image: Optional[np.ndarray]) -> QImage:
+def bgr_to_qimage(image: np.ndarray | None) -> QImage:
     """Convert a BGR (or gray) ``numpy`` array into a detached :class:`QImage`."""
     if image is None or image.size == 0:
         return QImage()
@@ -30,7 +28,7 @@ def bgr_to_qimage(image: Optional[np.ndarray]) -> QImage:
     return QImage(rgb.data, width, height, 3 * width, QImage.Format.Format_RGB888).copy()
 
 
-def bgr_to_pixmap(image: Optional[np.ndarray]) -> QPixmap:
+def bgr_to_pixmap(image: np.ndarray | None) -> QPixmap:
     """Convert a BGR ``numpy`` array into a :class:`QPixmap`."""
     qimage = bgr_to_qimage(image)
     if qimage.isNull():
@@ -55,7 +53,7 @@ class FitImageLabel(QLabel):
         self.setMinimumSize(240, 160)
 
     # ------------------------------------------------------------------ content
-    def set_source(self, pixmap: Optional[QPixmap]) -> None:
+    def set_source(self, pixmap: QPixmap | None) -> None:
         """Set the full size image that should be fitted into the label."""
         self._source = QPixmap() if pixmap is None else QPixmap(pixmap)
         self._apply_scale()
@@ -82,7 +80,7 @@ class FitImageLabel(QLabel):
         )
         super().setPixmap(scaled)
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._apply_scale()
 

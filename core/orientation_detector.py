@@ -18,8 +18,8 @@ guessing, and the user can rotate the document manually.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Optional
 
 import cv2
 import numpy as np
@@ -36,7 +36,7 @@ class OrientationResult:
     confident: bool = True  # False -> the user should verify the orientation
     method: str = "heuristic"
     score: float = 0.0
-    details: Dict[str, float] = field(default_factory=dict)
+    details: dict[str, float] = field(default_factory=dict)
 
 
 class OrientationDetector:
@@ -50,7 +50,7 @@ class OrientationDetector:
     def detect(
         self,
         image: np.ndarray,
-        ocr_reader: Optional[Callable[[np.ndarray], object]] = None,
+        ocr_reader: Callable[[np.ndarray], object] | None = None,
         allow_ocr: bool = True,
     ) -> OrientationResult:
         """Analyse *image* (BGR) and return the rotation that makes it upright."""
@@ -101,7 +101,7 @@ class OrientationDetector:
         if ink is None:
             return 0.0
         height, width = ink.shape[:2]
-        half_width = max(3, int(round(width * 0.02)))
+        half_width = max(3, round(width * 0.02))
         if half_width % 2 == 0:
             half_width += 1
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (half_width, 1))
@@ -132,7 +132,7 @@ class OrientationDetector:
         weighted = float((aspect_array * weight_array).sum() / weight_array.sum())
         return math.log(max(weighted, 1e-6))
 
-    def _ink_mask(self, image: np.ndarray) -> Optional[np.ndarray]:
+    def _ink_mask(self, image: np.ndarray) -> np.ndarray | None:
         gray = to_gray(image)
         height, width = gray.shape[:2]
         longest = max(height, width)
@@ -153,10 +153,10 @@ class OrientationDetector:
         image: np.ndarray,
         heuristic: OrientationResult,
         ocr_reader: Callable[[np.ndarray], object],
-    ) -> Optional[OrientationResult]:
+    ) -> OrientationResult | None:
         base = heuristic.rotation % 180
         candidates = [base, (base + 180) % 360]
-        scores: Dict[int, float] = {}
+        scores: dict[int, float] = {}
         try:
             for rotation in candidates:
                 rotated = rotate_image(image, rotation)
@@ -170,7 +170,7 @@ class OrientationDetector:
                     scores[rotation] = 0.0
                 else:
                     scores[rotation] = confidence * min(1.0, words / 12.0) + 0.001 * min(60, words)
-        except Exception:
+        except (RuntimeError, ValueError, OSError, AttributeError, TypeError):
             return None
         if not scores:
             return None

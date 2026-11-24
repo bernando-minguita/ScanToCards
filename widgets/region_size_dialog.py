@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Tuple
-
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -104,6 +102,6 @@ class RegionSizeDialog(QDialog):
         self._width.setValue(self._height.value())
         self._height.setValue(width)
 
-    def size_mm(self) -> Tuple[float, float]:
+    def size_mm(self) -> tuple[float, float]:
         """The chosen (width, height) in millimetres."""
         return float(self._width.value()), float(self._height.value())

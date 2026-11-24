@@ -477,11 +477,11 @@ def test_document_type_list_shows_builtin_and_custom(window):
         return next(answers)
 
     try:
-        setattr(QInputDialog, "getText", staticmethod(fake_get_text))
+        QInputDialog.getText = staticmethod(fake_get_text)
         window._switch_page(3)
         window._add_document_type()
     finally:
-        setattr(QInputDialog, "getText", original)
+        QInputDialog.getText = original
 
     try:
         cells = window._type_cells
@@ -1290,7 +1290,7 @@ def test_face_blur_settings_reflect_the_detector_backend(window, monkeypatch):
     from core import face_detector
 
     monkeypatch.setattr(face_detector, "_status_cache", None)
-    monkeypatch.setattr(face_detector, "model_candidates", lambda: [])
+    monkeypatch.setattr(face_detector, "model_candidates", list)
     window._switch_page(3)
     window._settings_page._refresh_face_blur_state()
 
@@ -1421,7 +1421,7 @@ def test_ocr_check_button_reports_the_engine(window, monkeypatch):
         "warning",
         staticmethod(lambda parent, title, text, *a, **k: messages.append((title, text))),
     )
-    answers = iter(["\n".join(["Tesseract found      : True", "Engine used          : tesseract"]), ""])
+    answers = iter(["Tesseract found      : True\nEngine used          : tesseract", ""])
     monkeypatch.setattr(
         OcrEngine,
         "diagnostic_report",
@@ -1505,7 +1505,7 @@ def test_custom_type_added_in_settings_is_usable(window, sample_pdf):
 
     original_get_text = QInputDialog.getText
     answers = iter([("Work Permit", True), ("WORK PERMIT", True)])
-    setattr(QInputDialog, "getText", staticmethod(lambda *args, **kwargs: next(answers)))
+    QInputDialog.getText = staticmethod(lambda *args, **kwargs: next(answers))
     try:
         window._switch_page(3)
         window._add_document_type()

@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QPolygonF,
+)
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPixmapItem,
@@ -61,7 +71,7 @@ class CardOverlayItem(QGraphicsItem):
             self.selected = bool(selected)
             self.update()
 
-    def boundingRect(self) -> QRectF:  # noqa: N802 - Qt naming
+    def boundingRect(self) -> QRectF:
         xs = self._quad[:, 0]
         ys = self._quad[:, 1]
         margin = self.handle_radius + 26
@@ -127,7 +137,7 @@ class CardOverlayItem(QGraphicsItem):
         return (dx * dx + dy * dy) ** 0.5 <= tolerance
 
     # -------------------------------------------------------------------- paint
-    def paint(self, painter: QPainter, option, widget=None) -> None:  # noqa: ARG002
+    def paint(self, painter: QPainter, option, widget=None) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         polygon = self.polygon()
         color = QColor(self.color)
@@ -245,10 +255,10 @@ class PdfPageView(QGraphicsView):
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.SmartViewportUpdate)
         self.setBackgroundBrush(QBrush(QColor(styles.SURFACE_ALT)))
 
-        self._pixmap_item: Optional[QGraphicsPixmapItem] = None
+        self._pixmap_item: QGraphicsPixmapItem | None = None
         self._page_size = (0, 0)
-        self._overlays: Dict[str, CardOverlayItem] = {}
-        self._order: List[str] = []
+        self._overlays: dict[str, CardOverlayItem] = {}
+        self._order: list[str] = []
         self._selected_id = ""
         self._mode = self.MODE_SELECT
         self._zoom = 1.0
@@ -258,14 +268,14 @@ class PdfPageView(QGraphicsView):
         self._dragging_corner = -1
         self._moving_id = ""
         self._move_start = QPointF()
-        self._move_origin: Optional[np.ndarray] = None
+        self._move_origin: np.ndarray | None = None
         self._rotation_enabled = False
         self._rotating_id = ""
         self._rotate_center = QPointF()
         self._rotate_last_angle = 0.0
         self._rotate_total = 0.0
-        self._add_start: Optional[QPointF] = None
-        self._rubber_item: Optional[QGraphicsRectItem] = None
+        self._add_start: QPointF | None = None
+        self._rubber_item: QGraphicsRectItem | None = None
 
     # -------------------------------------------------------------------- state
     @property
@@ -283,7 +293,7 @@ class PdfPageView(QGraphicsView):
         self._cancel_rubber_band()
 
     @property
-    def page_size(self) -> Tuple[int, int]:
+    def page_size(self) -> tuple[int, int]:
         return self._page_size
 
     def set_rotation_handle(self, enabled: bool) -> None:
@@ -294,7 +304,7 @@ class PdfPageView(QGraphicsView):
             item.update()
 
     # ------------------------------------------------- keyboard nudge / resize
-    def selected_editable_item(self) -> Optional[CardOverlayItem]:
+    def selected_editable_item(self) -> CardOverlayItem | None:
         """The selected overlay, if it may be edited."""
         item = self._overlays.get(self._selected_id)
         if item is None or not item.editable or item.excluded:
@@ -453,14 +463,14 @@ class PdfPageView(QGraphicsView):
         for item in self._overlays.values():
             item.set_handle_radius(radius_scene)
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         if not self._user_zoomed:
             self.fit_to_window()
         else:
             self._update_handle_sizes()
 
-    def wheelEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def wheelEvent(self, event) -> None:
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             delta = event.angleDelta().y()
             if delta:
@@ -470,14 +480,14 @@ class PdfPageView(QGraphicsView):
         super().wheelEvent(event)
 
     # -------------------------------------------------------------------- input
-    def _overlay_at(self, scene_pos: QPointF) -> Optional[CardOverlayItem]:
+    def _overlay_at(self, scene_pos: QPointF) -> CardOverlayItem | None:
         candidates = self._scene.items(scene_pos)
         for item in candidates:
             if isinstance(item, CardOverlayItem):
                 return item
         return None
 
-    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def mousePressEvent(self, event) -> None:
         scene_pos = self.mapToScene(event.position().toPoint())
         if self._mode == self.MODE_ADD and event.button() == Qt.MouseButton.LeftButton:
             # cancel the previous band first: it also clears the start point
@@ -529,7 +539,7 @@ class PdfPageView(QGraphicsView):
                 self.backgroundClicked.emit()
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def mouseMoveEvent(self, event) -> None:
         scene_pos = self.mapToScene(event.position().toPoint())
         if self._rubber_item is not None and self._add_start is not None:
             rect = QRectF(self._add_start, scene_pos).normalized()
@@ -615,7 +625,7 @@ class PdfPageView(QGraphicsView):
         moved = origin + np.array([delta_x, delta_y], dtype=np.float64)
         item.set_quad(moved)
 
-    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def mouseReleaseEvent(self, event) -> None:
         if self._rubber_item is not None and self._add_start is not None:
             scene_pos = self.mapToScene(event.position().toPoint())
             rect = QRectF(self._add_start, scene_pos).normalized()
@@ -666,7 +676,7 @@ class PdfPageView(QGraphicsView):
             return
         super().mouseReleaseEvent(event)
 
-    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def mouseDoubleClickEvent(self, event) -> None:
         scene_pos = self.mapToScene(event.position().toPoint())
         item = self._overlay_at(scene_pos)
         if item is not None:
@@ -675,7 +685,7 @@ class PdfPageView(QGraphicsView):
             return
         super().mouseDoubleClickEvent(event)
 
-    def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Escape and self._mode == self.MODE_ADD:
             self._cancel_rubber_band()
             self.manualRectDrawn.emit(None)

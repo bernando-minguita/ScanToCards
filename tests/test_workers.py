@@ -8,8 +8,6 @@ paths) can be checked without a GUI.
 
 from __future__ import annotations
 
-from typing import List
-
 from core.image_exporter import ExportOptions
 from core.models import DetectedCard
 from workers.detection_worker import DetectionWorker, ocr_report
@@ -23,7 +21,7 @@ def _card(page_index: int = 0, **kwargs) -> DetectedCard:
 
 def test_export_worker_names_the_first_file_001(synthetic_pdf, tmp_path, qapp):
     """Regression: the first exported file must be numbered _001, not _002."""
-    collector: List[object] = []
+    collector: list[object] = []
     worker = ExportWorker(
         [ExportJob(synthetic_pdf, [_card(source="a"), _card(source="b")])],
         ExportOptions(output_dir=str(tmp_path), image_format="png"),
@@ -40,7 +38,7 @@ def test_export_worker_names_the_first_file_001(synthetic_pdf, tmp_path, qapp):
 
 def test_export_worker_sequences_continuously_across_jobs(synthetic_pdf, tmp_path, qapp):
     """Two export jobs in one run must not restart or skip the numbering."""
-    collector: List[object] = []
+    collector: list[object] = []
     job_one = ExportJob(synthetic_pdf, [_card()])
     job_two = ExportJob(synthetic_pdf, [_card(), _card()])
     worker = ExportWorker(
@@ -56,8 +54,8 @@ def test_export_worker_sequences_continuously_across_jobs(synthetic_pdf, tmp_pat
 
 
 def test_export_worker_cancelled_before_run_writes_nothing(synthetic_pdf, tmp_path, qapp):
-    cancelled: List[str] = []
-    finished: List[object] = []
+    cancelled: list[str] = []
+    finished: list[object] = []
     worker = ExportWorker(
         [ExportJob(synthetic_pdf, [_card()])],
         ExportOptions(output_dir=str(tmp_path), image_format="png"),
@@ -74,7 +72,7 @@ def test_export_worker_cancelled_before_run_writes_nothing(synthetic_pdf, tmp_pa
 def test_export_worker_ignores_excluded_cards(synthetic_pdf, tmp_path, qapp):
     excluded = _card()
     excluded.included = False
-    collector: List[object] = []
+    collector: list[object] = []
     worker = ExportWorker(
         [ExportJob(synthetic_pdf, [excluded, _card()])],
         ExportOptions(output_dir=str(tmp_path), image_format="png"),
@@ -93,7 +91,7 @@ def test_export_worker_reports_a_skipped_face_blur_once(synthetic_pdf, tmp_path,
     reason = "face blur needs OpenCV's Haar cascade"
     monkeypatch.setattr(image_exporter, "face_blur_support", lambda: (False, reason))
 
-    collector: List[object] = []
+    collector: list[object] = []
     worker = ExportWorker(
         [ExportJob(synthetic_pdf, [_card(), _card()])],
         ExportOptions(output_dir=str(tmp_path), image_format="png", blur_faces=True),
@@ -111,8 +109,8 @@ def test_export_worker_reports_a_broken_file_as_an_error(tmp_path, qapp):
     unsupported = tmp_path / "not_a_scan.pdf"
     unsupported.write_bytes(b"this is not a real pdf")
 
-    failures: List[str] = []
-    finished: List[object] = []
+    failures: list[str] = []
+    finished: list[object] = []
     worker = ExportWorker(
         [ExportJob(unsupported, [_card()])],
         ExportOptions(output_dir=str(tmp_path / "out"), image_format="png"),
@@ -136,9 +134,9 @@ def test_ocr_report_summary_states():
 
 def test_detection_worker_cancelled_before_run(synthetic_pdf, qapp):
     """A cancel requested before ``run()`` must report cancelled, not success."""
-    cancelled: List[int] = []
-    finished: List[int] = []
-    cards: List[DetectedCard] = []
+    cancelled: list[int] = []
+    finished: list[int] = []
+    cards: list[DetectedCard] = []
 
     settings = type("Settings", (), {})()
     worker = DetectionWorker(synthetic_pdf, [0], settings)
@@ -177,9 +175,9 @@ def test_export_job_snapshots_the_cards(qapp):
 
 def test_detection_worker_runs_the_pipeline_without_ocr(synthetic_pdf, qapp):
     """A defaults-only run (no OCR settings) finishes cleanly, without errors."""
-    finished: List[int] = []
-    failures: List[str] = []
-    cards: List[DetectedCard] = []
+    finished: list[int] = []
+    failures: list[str] = []
+    cards: list[DetectedCard] = []
 
     settings = type("Settings", (), {})()  # every attribute falls back via getattr
     worker = DetectionWorker(synthetic_pdf, [0], settings)

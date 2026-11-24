@@ -11,8 +11,8 @@ from __future__ import annotations
 import difflib
 import itertools
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -35,7 +35,7 @@ from .ocr_engine import OcrEngine
 #   "KINGDOM OF SAUDI ARABIA" or "MINISTRY OF INTERIOR" are deliberately absent
 #   (they appear on almost every Saudi document and carry no information).
 # * There are no exact duplicates - tests/test_units.py asserts that.
-KEYWORD_RULES: Sequence[Tuple[str, DocumentType, float]] = (
+KEYWORD_RULES: Sequence[tuple[str, DocumentType, float]] = (
     ("PASSPORT", DocumentType.PASSPORT, 1.0),
     ("PASSPORT NO", DocumentType.PASSPORT, 0.8),
     # ("REPUBLIC OF", DocumentType.PASSPORT, 0.5),
@@ -67,7 +67,7 @@ KEYWORD_RULES: Sequence[Tuple[str, DocumentType, float]] = (
 
 # Arabic spellings of the same concepts.  Kept separate so the table above stays
 # easy to compare with the English document texts.
-_ARABIC_RULES: Sequence[Tuple[str, DocumentType, float]] = (
+_ARABIC_RULES: Sequence[tuple[str, DocumentType, float]] = (
     ("هوية مقيم", DocumentType.IQAMA, 1.0),
     ("هوية وطنية", DocumentType.NATIONAL_ID, 1.0),
     ("رخصة قيادة", DocumentType.DRIVING_LICENSE, 1.0),
@@ -184,11 +184,11 @@ def keyword_score(prepared_text: str, keyword: str, threshold: float = FUZZY_THR
     return best if best >= threshold else 0.0
 
 
-def builtin_keywords(doc_type: DocumentType) -> List[str]:
+def builtin_keywords(doc_type: DocumentType) -> list[str]:
     """Keywords the classifier knows for *doc_type* without user changes."""
     if doc_type is None or doc_type is DocumentType.UNKNOWN:
         return []  # "Unknown" is the fallback and has no keywords
-    found: List[str] = []
+    found: list[str] = []
     for keyword, rule_type, _weight in tuple(KEYWORD_RULES) + tuple(_ARABIC_RULES):
         if rule_type is doc_type and keyword not in found:
             found.append(keyword)
@@ -213,14 +213,14 @@ class ClassificationResult:
 class DocumentClassifier:
     """Classify extracted cards into one of the supported document types."""
 
-    def __init__(self, ocr_engine: Optional[OcrEngine] = None, min_confidence: float = 0.35) -> None:
+    def __init__(self, ocr_engine: OcrEngine | None = None, min_confidence: float = 0.35) -> None:
         self.ocr_engine = ocr_engine
         self.min_confidence = float(min_confidence)
 
     # ------------------------------------------------------------------ public
     def classify(
         self,
-        image: Optional[np.ndarray] = None,
+        image: np.ndarray | None = None,
         ocr_text: str = "",
         aspect_ratio: float = 0.0,
         area_ratio: float = 0.0,
@@ -254,14 +254,14 @@ class DocumentClassifier:
     # ----------------------------------------------------------------- scoring
     def _keyword_scores(
         self, prepared_text: str, raw_text: str = ""
-    ) -> Dict[DocumentType, float]:
+    ) -> dict[DocumentType, float]:
         """Score each document type against the prepared OCR text.
 
         ``raw_text`` is the un-normalised upper-cased OCR text.  It is needed
         for the MRZ pattern, because the noise-tolerant preparation would have
         stripped the ``<`` characters that the pattern looks for.
         """
-        scores: Dict[DocumentType, float] = {}
+        scores: dict[DocumentType, float] = {}
         if not prepared_text:
             return scores
         for keyword, doc_type, weight in KEYWORD_RULES:
@@ -299,7 +299,7 @@ class DocumentClassifier:
             scores[DocumentType.PASSPORT] = scores.get(DocumentType.PASSPORT, 0.0) + 1.2
         return scores
 
-    def _best_type(self, scores: Dict[DocumentType, float]) -> Tuple[DocumentType, float, str]:
+    def _best_type(self, scores: dict[DocumentType, float]) -> tuple[DocumentType, float, str]:
         if not scores:
             return DocumentType.UNKNOWN, 0.0, "No matching keywords found"
         ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
@@ -311,7 +311,7 @@ class DocumentClassifier:
             return DocumentType.UNKNOWN, confidence, reason
         return doc_type, confidence, reason
 
-    def _geometry_hint(self, aspect_ratio: float, area_ratio: float) -> Tuple[DocumentType, float, str]:
+    def _geometry_hint(self, aspect_ratio: float, area_ratio: float) -> tuple[DocumentType, float, str]:
         """Very weak geometric fall back. Never strong enough to be authoritative."""
         if aspect_ratio <= 0:
             return DocumentType.UNKNOWN, 0.0, ""

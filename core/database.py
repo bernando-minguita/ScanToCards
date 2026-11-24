@@ -22,12 +22,12 @@ from __future__ import annotations
 import os
 import sqlite3
 import tempfile
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Dict
 
-from core.pdf_loader import is_supported_file
+from core.pdf_loader import PdfError, is_supported_file
 
 PROJECT_SUFFIX = ".dceproj"
 DEFAULT_PROJECT_NAME = "Document Library"
@@ -63,7 +63,7 @@ def normalised_path(path: str | Path) -> str:
 class DetectedRegion:
     """A detected document region (bounding box + metadata) for a file/page."""
     id: int
-    file_id: Optional[int]  # NULL when the library entry was removed (orphaned)
+    file_id: int | None  # NULL when the library entry was removed (orphaned)
     page_num: int
     region_index: int
     doc_type: str
@@ -81,7 +81,7 @@ class DetectedRegion:
     canonical_path: str = ""     # normcase(resolved) path for re-linking after remove/re-add
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> "DetectedRegion":
+    def from_row(cls, row: sqlite3.Row) -> DetectedRegion:
         keys = row.keys()
         file_id_val = row["file_id"]
         return cls(
@@ -136,7 +136,7 @@ class LibraryItem:
             try:
                 rel = Path(self.relative_path)
                 if rel.is_absolute():
-                    rel_path = rel
+                    pass
                 else:
                     # Will be resolved against project dir by caller
                     return str(rel)
@@ -149,7 +149,7 @@ class LibraryItem:
         return STATUS_LABELS.get(self.status, str(self.status).title())
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> "LibraryItem":
+    def from_row(cls, row: sqlite3.Row) -> LibraryItem:
         keys = row.keys()
         return cls(
             id=int(row["id"]),
@@ -165,7 +165,7 @@ class LibraryItem:
         )
 
 
-_SCHEMA = """
+_SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS projects (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
@@ -220,8 +220,8 @@ CREATE INDEX IF NOT EXISTS idx_detected_regions_file
 CREATE INDEX IF NOT EXISTS idx_detected_regions_canonical_path
     ON detected_regions(canonical_path);
 
-PRAGMA user_version = %d;
-""" % SCHEMA_VERSION
+PRAGMA user_version = {SCHEMA_VERSION};
+"""
 
 _REQUIRED_TABLES = ("projects", "library_items", "detected_regions")
 
@@ -229,7 +229,7 @@ _REQUIRED_TABLES = ("projects", "library_items", "detected_regions")
 class ProjectDatabase:
     """Thin, fault-tolerant wrapper around one SQLite connection."""
 
-    def __init__(self, path: Optional[Path], create: bool = True) -> None:
+    def __init__(self, path: Path | None, create: bool = True) -> None:
         # ``None`` = in-memory workspace (a project that has not been saved yet)
         self.path = Path(path) if path else None
         if self.path is not None:
@@ -238,7 +238,7 @@ class ProjectDatabase:
             except OSError as exc:
                 raise ProjectError(f"Cannot create the project folder:\n{exc}") from exc
         try:
-            self._conn: Optional[sqlite3.Connection] = sqlite3.connect(
+            self._conn: sqlite3.Connection | None = sqlite3.connect(
                 str(self.path) if self.path is not None else ":memory:", timeout=10.0
             )
             self._conn.row_factory = sqlite3.Row
@@ -459,7 +459,7 @@ class ProjectStore:
         self,
         database: ProjectDatabase,
         project_id: int,
-        project_file: Optional[Path] = None,
+        project_file: Path | None = None,
     ) -> None:
         self._db = database
         self._project_id = int(project_id)
@@ -468,8 +468,8 @@ class ProjectStore:
     # ----------------------------------------------------------- construction
     @classmethod
     def create(
-        cls, path: Optional[Path] = None, name: str = DEFAULT_PROJECT_NAME
-    ) -> "ProjectStore":
+        cls, path: Path | None = None, name: str = DEFAULT_PROJECT_NAME
+    ) -> ProjectStore:
         """Create a new, empty project (in memory when *path* is ``None``)."""
         database = ProjectDatabase(path, create=True)
         try:
@@ -486,7 +486,7 @@ class ProjectStore:
         return cls(database, int(cursor.lastrowid), project_file=path)
 
     @classmethod
-    def open(cls, path: str | Path) -> "ProjectStore":
+    def open(cls, path: str | Path) -> ProjectStore:
         """Open an existing ``.dceproj`` file."""
         project_path = Path(path)
         if not project_path.is_file():
@@ -510,11 +510,11 @@ class ProjectStore:
         return self._project_id
 
     @property
-    def project_file(self) -> Optional[Path]:
+    def project_file(self) -> Path | None:
         return self._project_file
 
     @property
-    def database_path(self) -> Optional[Path]:
+    def database_path(self) -> Path | None:
         return self._db.path
 
     @property
@@ -554,7 +554,7 @@ class ProjectStore:
         except sqlite3.Error as exc:
             raise ProjectError(f"Cannot update the project:\n{exc}") from exc
 
-    def items(self) -> List[LibraryItem]:
+    def items(self) -> list[LibraryItem]:
         """Every library entry of this project, in the order it was added."""
         try:
             rows = self._db.connection.execute(
@@ -566,13 +566,13 @@ class ProjectStore:
             raise ProjectError(f"Cannot read the document library:\n{exc}") from exc
         return [LibraryItem.from_row(row) for row in rows]
 
-    def item_paths(self) -> List[str]:
+    def item_paths(self) -> list[str]:
         return [item.file_path for item in self.items()]
 
-    def add_paths(self, paths: Iterable[str | Path]) -> List[LibraryItem]:
+    def add_paths(self, paths: Iterable[str | Path]) -> list[LibraryItem]:
         """Add the supported files in *paths*; duplicates/missing files are skipped."""
         existing = {os.path.normcase(item.file_path) for item in self.items()}
-        added: List[LibraryItem] = []
+        added: list[LibraryItem] = []
         now = _now()
         # Determine next sort_order
         max_sort = 0
@@ -587,7 +587,7 @@ class ProjectStore:
             pass
 
         # Compute base directory for relative paths (project file's parent, if any)
-        proj_dir: Optional[Path] = None
+        proj_dir: Path | None = None
         if self._project_file is not None:
             proj_dir = self._project_file.parent
 
@@ -607,7 +607,7 @@ class ProjectStore:
                     doc = PdfDocument(path)
                     page_count = doc.page_count
                     doc.close()
-                except Exception:
+                except (PdfError, OSError, RuntimeError, ValueError):
                     page_count = 1
                 # Compute relative path against project directory, if possible
                 rel_path = ""
@@ -742,14 +742,13 @@ class ProjectStore:
         self,
         file_id: int,
         page_num: int,
-        regions: List[DetectedRegion],
+        regions: list[DetectedRegion],
     ) -> None:
         """Replace all regions for a file/page with the provided list.
 
         The DELETE + INSERT pair runs inside a single explicit transaction so
         that a failure mid-insert never leaves the table half-cleared.
         """
-        import json
         try:
             self._db.connection.execute("BEGIN")
             self._db.connection.execute(
@@ -790,7 +789,7 @@ class ProjectStore:
                 pass
             raise ProjectError(f"Cannot save detected regions:\n{exc}") from exc
 
-    def load_regions(self, file_id: int, page_num: int) -> List[DetectedRegion]:
+    def load_regions(self, file_id: int, page_num: int) -> list[DetectedRegion]:
         """Load all regions for a file/page."""
         try:
             rows = self._db.connection.execute(
@@ -801,7 +800,7 @@ class ProjectStore:
             raise ProjectError(f"Cannot load detected regions:\n{exc}") from exc
         return [DetectedRegion.from_row(row) for row in rows]
 
-    def load_all_regions(self, file_id: int) -> Dict[int, List[DetectedRegion]]:
+    def load_all_regions(self, file_id: int) -> dict[int, list[DetectedRegion]]:
         """Load all regions for a file, grouped by page."""
         try:
             rows = self._db.connection.execute(
@@ -810,13 +809,13 @@ class ProjectStore:
             ).fetchall()
         except sqlite3.Error as exc:
             raise ProjectError(f"Cannot load detected regions:\n{exc}") from exc
-        result: Dict[int, List[DetectedRegion]] = {}
+        result: dict[int, list[DetectedRegion]] = {}
         for row in rows:
             region = DetectedRegion.from_row(row)
             result.setdefault(region.page_num, []).append(region)
         return result
 
-    def region_counts(self) -> Dict[int, int]:
+    def region_counts(self) -> dict[int, int]:
         """Number of saved regions per library item id.
 
         Used by the Document Library panel to mark the files that already have
@@ -831,7 +830,7 @@ class ProjectStore:
             ).fetchall()
         except sqlite3.Error as exc:
             raise ProjectError(f"Cannot read the extracted regions:\n{exc}") from exc
-        counts: Dict[int, int] = {}
+        counts: dict[int, int] = {}
         for row in rows:
             try:
                 counts[int(row["file_id"])] = int(row["total"])
@@ -852,7 +851,7 @@ class ProjectStore:
             return (row["active_file_id"], int(row["active_page_num"] or 1))
         return (None, 1)
 
-    def set_active_file_and_page(self, file_id: Optional[int], page_num: int = 1) -> None:
+    def set_active_file_and_page(self, file_id: int | None, page_num: int = 1) -> None:
         """Update the active file and page for the project."""
         try:
             self._db.connection.execute(
@@ -864,7 +863,7 @@ class ProjectStore:
             raise ProjectError(f"Cannot update project state:\n{exc}") from exc
 
     # ---------------------------------------------------------------- path resolution
-    def resolve_file_path(self, item: LibraryItem) -> Optional[str]:
+    def resolve_file_path(self, item: LibraryItem) -> str | None:
         """Resolve the actual on-disk path for a library item.
 
         Resolution order:
@@ -964,7 +963,7 @@ class ProjectStore:
         old_database.close()
         return resolved
 
-    def _check_saved_count(self, database: "ProjectDatabase", expected: int, path: Path) -> None:
+    def _check_saved_count(self, database: ProjectDatabase, expected: int, path: Path) -> None:
         """Refuse a project file whose library rows did not survive the copy."""
         try:
             row = database.connection.execute(
@@ -993,7 +992,7 @@ class ProjectStore:
                 ).fetchone()
             except sqlite3.Error as exc:
                 raise ProjectError(f"Cannot verify detected regions in saved project:\n{exc}") from exc
-            regions_found = int(row[0]) if row else 0
+            int(row[0]) if row else 0
             # This is just a sanity check - regions may be empty if no detection was run
             # but the table should exist and be accessible
 

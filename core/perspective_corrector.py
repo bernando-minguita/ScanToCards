@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence, Tuple
+from collections.abc import Sequence
 
 import cv2
 import numpy as np
@@ -24,7 +24,7 @@ def order_quad_points(points: Sequence[Sequence[float]]) -> np.ndarray:
     return np.roll(quad, -start, axis=0).astype(np.float32)
 
 
-def quad_side_lengths(quad: np.ndarray) -> Tuple[float, float, float, float]:
+def quad_side_lengths(quad: np.ndarray) -> tuple[float, float, float, float]:
     """Lengths of the top, right, bottom and left sides of *quad*."""
     quad = np.asarray(quad, dtype=np.float32).reshape(4, 2)
     top = float(np.linalg.norm(quad[1] - quad[0]))
@@ -34,15 +34,15 @@ def quad_side_lengths(quad: np.ndarray) -> Tuple[float, float, float, float]:
     return top, right, bottom, left
 
 
-def quad_size(quad: np.ndarray) -> Tuple[int, int]:
+def quad_size(quad: np.ndarray) -> tuple[int, int]:
     """Natural output size ``(width, height)`` for a quad."""
     top, right, bottom, left = quad_side_lengths(quad)
-    width = int(round(max(top, bottom)))
-    height = int(round(max(left, right)))
+    width = round(max(top, bottom))
+    height = round(max(left, right))
     return max(width, 2), max(height, 2)
 
 
-def rotate_quad(quad: np.ndarray, degrees: float, center: Optional[Sequence[float]] = None) -> np.ndarray:
+def rotate_quad(quad: np.ndarray, degrees: float, center: Sequence[float] | None = None) -> np.ndarray:
     """Rotate the four corner points of *quad* around its centre (clockwise)."""
     points = np.asarray(quad, dtype=np.float32).reshape(4, 2)
     angle_deg = float(degrees)
@@ -79,7 +79,7 @@ def expand_quad(quad: np.ndarray, ratio: float = 0.01) -> np.ndarray:
 
 
 
-def quad_frame(quad: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def quad_frame(quad: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return ``(centre, width_axis, height_axis)`` of *quad* as unit vectors.
 
     Corner 0 is the top-left and the corners run clockwise, so ``corner1 - corner0``
@@ -195,7 +195,7 @@ def clip_quad(quad: np.ndarray, width: int, height: int) -> np.ndarray:
 def warp_quad(
     image: np.ndarray,
     quad: np.ndarray,
-    output_size: Optional[Tuple[int, int]] = None,
+    output_size: tuple[int, int] | None = None,
     pad_ratio: float = 0.0,
 ) -> np.ndarray:
     """Perspective-correct the region described by *quad*.
@@ -247,7 +247,7 @@ def make_thumbnail(image: np.ndarray, max_size: int = 320) -> np.ndarray:
     if longest <= max_size:
         return image.copy()
     scale = max_size / float(longest)
-    size = (max(1, int(round(width * scale))), max(1, int(round(height * scale))))
+    size = (max(1, round(width * scale)), max(1, round(height * scale)))
     return cv2.resize(image, size, interpolation=cv2.INTER_AREA)
 
 

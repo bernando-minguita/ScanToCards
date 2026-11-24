@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import subprocess
 import sys
 import time
 import zlib
 from pathlib import Path
-from typing import Dict, List, Optional
 
+import cv2
 import numpy as np
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import (
@@ -57,14 +57,19 @@ from core.database import (
     DEFAULT_PROJECT_NAME,
     PROJECT_SUFFIX,
     STATUS_EXTRACTED,
+    DetectedRegion,
     ProjectError,
     ProjectStore,
-    DetectedRegion,
 )
 from core.image_exporter import ExportOptions, ExportSummary
 from core.models import DetectedCard, DocumentType
 from core.ocr_engine import OcrEngine
-from core.pdf_loader import PdfDocument, PdfError, is_supported_file, supported_file_filter
+from core.pdf_loader import (
+    PdfDocument,
+    PdfError,
+    is_supported_file,
+    supported_file_filter,
+)
 from core.perspective_corrector import make_thumbnail, rotate_image, warp_quad
 from widgets.crop_editor import CropEditorDialog
 from widgets.document_gallery import DocumentGallery, GalleryFilter
@@ -78,12 +83,12 @@ from workers.export_worker import ExportJob, ExportWorker
 
 APP_NAME = "ScanToCards"
 APP_SUBTITLE = "Document Card Extractor"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 
 
 def standard_shortcuts(
     key: QKeySequence.StandardKey, fallback: str = ""
-) -> List[QKeySequence]:
+) -> list[QKeySequence]:
     """Resolve a platform standard key to concrete key sequences.
 
     ``QKeySequence.StandardKey`` values are theme dependent: ``Quit`` has no
@@ -115,7 +120,7 @@ TYPE_COLORS = {
 class MainWindow(QMainWindow):
     """Everything the user interacts with."""
 
-    def __init__(self, settings: Optional[AppSettings] = None) -> None:
+    def __init__(self, settings: AppSettings | None = None) -> None:
         super().__init__()
         self.settings = settings or AppSettings.load()
         self.settings.apply_document_types()
@@ -125,24 +130,24 @@ class MainWindow(QMainWindow):
         self._startup_project_error = ""
         # The document library is stored in SQLite.  Always start with a fresh
         # empty in-memory project; the user can open or create a project explicitly.
-        self._library_store: Optional[ProjectStore] = ProjectStore.create()
+        self._library_store: ProjectStore | None = ProjectStore.create()
 
-        self._sessions: List[DocumentSession] = []
+        self._sessions: list[DocumentSession] = []
         self._session_index = -1
         self._page_index = 0
-        self._page_image: Optional[np.ndarray] = None
+        self._page_image: np.ndarray | None = None
         self._page_dpi: float = 0.0
         self._region_pending_dialog: int = -1
-        self._preview_document: Optional[PdfDocument] = None
+        self._preview_document: PdfDocument | None = None
         # A freshly probed document not yet attached to the preview (avoids
         # opening/decoding the same file twice in load_pdf).
-        self._pending_preview_document: Optional[PdfDocument] = None
+        self._pending_preview_document: PdfDocument | None = None
         self._selected_card_id = ""
-        self._detection_worker: Optional[DetectionWorker] = None
-        self._export_worker: Optional[ExportWorker] = None
-        self._detection_errors: List[str] = []
-        self._export_errors: List[str] = []
-        self._active_export_jobs: List[ExportJob] = []
+        self._detection_worker: DetectionWorker | None = None
+        self._export_worker: ExportWorker | None = None
+        self._detection_errors: list[str] = []
+        self._export_errors: list[str] = []
+        self._active_export_jobs: list[ExportJob] = []
         self._busy = False
         # Batch loading (Add Folder / drop / project open) drives the progress
         # panel itself; ``_loading_batch`` keeps it from re-entering and
@@ -158,7 +163,7 @@ class MainWindow(QMainWindow):
         self._thumb_timer.setSingleShot(True)
         self._thumb_timer.setInterval(30)
         self._thumb_timer.timeout.connect(self._flush_thumbnails)
-        self._thumb_pending: Optional[DetectedCard] = None
+        self._thumb_pending: DetectedCard | None = None
         # The gallery is rebuilt when a page finishes; a 20 page run would
         # rebuild it 20 times, so those refreshes are coalesced as well.
         self._gallery_timer = QTimer(self)
@@ -222,7 +227,7 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ session
     @property
-    def session(self) -> Optional[DocumentSession]:
+    def session(self) -> DocumentSession | None:
         if 0 <= self._session_index < len(self._sessions):
             return self._sessions[self._session_index]
         return None
@@ -276,7 +281,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(brand_row)
         layout.addSpacing(18)
 
-        self._nav_buttons: List[QPushButton] = []
+        self._nav_buttons: list[QPushButton] = []
         for index, (label, icon_name) in enumerate(
             (
                 ("Dashboard", "dashboard"),
@@ -346,7 +351,7 @@ class MainWindow(QMainWindow):
         status.addPermanentWidget(container)
 
     # ------------------------------------------------------- document library
-    def _open_startup_project(self) -> Optional[ProjectStore]:
+    def _open_startup_project(self) -> ProjectStore | None:
         """Open the last saved project, or start a new unsaved one.
 
         The default project lives in memory, so the library only survives a
@@ -443,7 +448,7 @@ class MainWindow(QMainWindow):
         menu_bar = self.menuBar()
         # Every action that depends on the application state is registered here
         # so ``_update_menu_state`` can grey it out without touching the menus.
-        self._menu_actions: Dict[str, QAction] = {}
+        self._menu_actions: dict[str, QAction] = {}
 
         file_menu = menu_bar.addMenu("&File")
 
@@ -1166,7 +1171,7 @@ class MainWindow(QMainWindow):
         if changed:
             widget.refresh()
 
-    def _get_library_file_id(self, path: str) -> Optional[int]:
+    def _get_library_file_id(self, path: str) -> int | None:
         """Get the library item ID for a file path."""
         store = self._library_store
         if store is None:
@@ -1194,7 +1199,7 @@ class MainWindow(QMainWindow):
             cards = session.cards_for_page(page_index)
             if not cards:
                 continue
-            regions: List[DetectedRegion] = []
+            regions: list[DetectedRegion] = []
             for idx, card in enumerate(cards):
                 # Persist the full normalized quad so rotated/skewed cards
                 # round-trip exactly instead of collapsing to an axis-aligned
@@ -1253,14 +1258,14 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _cards_from_regions(
-        all_regions: Dict[int, List[DetectedRegion]], page_count: int
-    ) -> List[DetectedCard]:
+        all_regions: dict[int, list[DetectedRegion]], page_count: int
+    ) -> list[DetectedCard]:
         """Convert stored regions into cards (shared by the viewer and export).
 
         *page_count* bounds the pages that are accepted: a project saved when the
         file had more pages must not produce cards that point past the end.
         """
-        cards: List[DetectedCard] = []
+        cards: list[DetectedCard] = []
         for page_num, regions in (all_regions or {}).items():
             page_index = page_num - 1  # Convert to 0-based
             if page_index < 0 or page_index >= page_count:
@@ -1410,7 +1415,7 @@ class MainWindow(QMainWindow):
                 if self._get_library_file_id(str(session.path)) == active_file_id:
                     active_session_idx = index
                     break
-        self._session_index = active_session_idx if active_session_idx >= 0 else 0
+        self._session_index = max(active_session_idx, 0)
         self._activate_session()
 
         # Select the active page
@@ -1925,7 +1930,7 @@ class MainWindow(QMainWindow):
 
         stats_row = QHBoxLayout()
         stats_row.setSpacing(12)
-        self._stat_cards: Dict[str, QLabel] = {}
+        self._stat_cards: dict[str, QLabel] = {}
         for key, label in (
             ("loaded", "Files loaded"),
             ("detected", "Documents detected"),
@@ -2085,7 +2090,7 @@ class MainWindow(QMainWindow):
         return page
 
     @property
-    def _type_cells(self) -> Dict[str, Dict[str, object]]:
+    def _type_cells(self) -> dict[str, dict[str, object]]:
         """Rebuilt by the settings page on every change - always read live."""
         return self._settings_page._type_cells
 
@@ -2187,7 +2192,7 @@ class MainWindow(QMainWindow):
         # (only when a document is already open - see _show_extract_page).
         self._show_extract_page(require_document=True)
 
-    def _add_paths_to_library(self, paths: List[str]) -> int:
+    def _add_paths_to_library(self, paths: list[str]) -> int:
         """Register *paths* in the project library; returns how many were new."""
         store = self._library_store
         widget = getattr(self, "_library_sidebar", None)
@@ -2230,7 +2235,7 @@ class MainWindow(QMainWindow):
         # dashboard/history page when there is a canvas to return to.
         self._show_extract_page(require_document=True)
 
-    def _add_paths_with_progress(self, paths: List[str], caption: str) -> int:
+    def _add_paths_with_progress(self, paths: list[str], caption: str) -> int:
         """Add *paths* to the library in cancellable batches.
 
         Counting the pages of a large folder means opening every file, which
@@ -2274,7 +2279,7 @@ class MainWindow(QMainWindow):
 
     def _load_paths(
         self,
-        paths: List[str],
+        paths: list[str],
         add: bool = True,
         caption: str = "Loading files…",
         first_replaces: bool = False,
@@ -2329,9 +2334,9 @@ class MainWindow(QMainWindow):
                 self._progress.finish("No files were loaded")
         return loaded
 
-    def _scan_folder_for_files(self, folder: str) -> List[str]:
+    def _scan_folder_for_files(self, folder: str) -> list[str]:
         """Scan folder recursively for supported PDF and image files."""
-        found: List[str] = []
+        found: list[str] = []
         try:
             for path in sorted(Path(folder).rglob("*")):
                 try:
@@ -2354,7 +2359,7 @@ class MainWindow(QMainWindow):
         path, _filter = QFileDialog.getOpenFileName(self, caption, start, filters)
         return path
 
-    def _ask_for_pdfs(self, caption: str) -> List[str]:
+    def _ask_for_pdfs(self, caption: str) -> list[str]:
         """Multi-select variant of :meth:`_ask_for_pdf` (Add File)."""
         start = self.settings.last_input_dir or str(Path.home())
         filters = (
@@ -2418,7 +2423,7 @@ class MainWindow(QMainWindow):
                     return self.load_pdf(path, add=add, password=entered)
             QMessageBox.critical(self, "Cannot open file", message)
             return False
-        except Exception as exc:  # pragma: no cover - unexpected failures
+        except (OSError, RuntimeError, ValueError) as exc:  # safety net for unexpected errors
             QMessageBox.critical(self, "Cannot open file", str(exc))
             return False
 
@@ -2474,7 +2479,7 @@ class MainWindow(QMainWindow):
             else:
                 try:
                     self._preview_document = PdfDocument(session.path, password=session.password or None)
-                except Exception as exc:
+                except (PdfError, OSError, RuntimeError, ValueError) as exc:
                     QMessageBox.critical(self, "Cannot open file", str(exc))
                     self._preview_document = None
             # Load saved regions for this session
@@ -2560,7 +2565,7 @@ class MainWindow(QMainWindow):
             )
             self._page_image = self._preview_document.render_page(self._page_index, dpi=dpi)
             self._page_dpi = float(dpi)
-        except Exception as exc:
+        except (PdfError, OSError, RuntimeError, ValueError) as exc:
             self._page_image = None
             self._page_dpi = 0.0
             self._progress.set_message(f"Page render failed: {exc}")
@@ -2569,7 +2574,7 @@ class MainWindow(QMainWindow):
         self._refresh_overlays()
 
     # ------------------------------------------------------------- card display
-    def _visible_cards(self) -> List[DetectedCard]:
+    def _visible_cards(self) -> list[DetectedCard]:
         session = self.session
         if session is None:
             return []
@@ -2585,7 +2590,7 @@ class MainWindow(QMainWindow):
         if session is None:
             self._view.set_overlays([])
             return
-        specs: List[OverlaySpec] = []
+        specs: list[OverlaySpec] = []
         for position, card in enumerate(session.cards_for_page(self._page_index), start=1):
             color = self._type_color(card.doc_type)
             type_label = "Document" if card.doc_type is DocumentType.UNKNOWN else card.doc_type.display_name
@@ -2668,7 +2673,7 @@ class MainWindow(QMainWindow):
         self._type_combo.blockSignals(False)
         self._include_check.blockSignals(False)
 
-    def _selected_card(self) -> Optional[DetectedCard]:
+    def _selected_card(self) -> DetectedCard | None:
         session = self.session
         if session is None or not self._selected_card_id:
             return None
@@ -2740,6 +2745,7 @@ class MainWindow(QMainWindow):
         busy = self._busy
         self._btn_open.setEnabled(not busy)
         self._btn_add.setEnabled(not busy)
+        self._btn_add_folder.setEnabled(not busy)
         self._btn_detect.setEnabled(has_session and not busy)
         self._btn_redetect.setEnabled(has_session and not busy)
         self._btn_export.setEnabled(has_session and counts["approved"] > 0 and not busy)
@@ -2767,7 +2773,7 @@ class MainWindow(QMainWindow):
         self._page_hint.setText(hint)
 
     # -------------------------------------------------------------- detection
-    def start_detection(self, pages: Optional[List[int]] = None) -> None:
+    def start_detection(self, pages: list[int] | None = None) -> None:
         session = self.session
         if session is None or self._busy:
             return
@@ -2802,7 +2808,7 @@ class MainWindow(QMainWindow):
         for page_index in pages:
             session.detected_pages.discard(page_index)
 
-        self._detection_errors: List[str] = []
+        self._detection_errors: list[str] = []
         self._busy = True
         self._update_state()
         self._refresh_overlays()
@@ -2849,7 +2855,7 @@ class MainWindow(QMainWindow):
         session.clear_page(page_index)
         self._schedule_gallery_refresh()
 
-    def _parse_page_range(self, text: str, page_count: int) -> List[int]:
+    def _parse_page_range(self, text: str, page_count: int) -> list[int]:
         """Parse ``"1,3,5-7"`` into zero-based page indices (bad parts ignored)."""
         from core.page_range import parse_page_range
 
@@ -2945,7 +2951,7 @@ class MainWindow(QMainWindow):
             return "library"
         return ""
 
-    def _library_export_jobs(self) -> List[ExportJob]:
+    def _library_export_jobs(self) -> list[ExportJob]:
         """Export jobs for every library file that has extracted regions.
 
         Files that are open use their live in-memory cards (so unsaved edits to
@@ -2956,7 +2962,7 @@ class MainWindow(QMainWindow):
         if store is None:
             return []
         open_sessions = {str(session.path): session for session in self._sessions}
-        jobs: List[ExportJob] = []
+        jobs: list[ExportJob] = []
         try:
             items = store.items()
         except ProjectError as exc:
@@ -3051,7 +3057,7 @@ class MainWindow(QMainWindow):
         self._start_export([single_job], options)
 
     def _confirm_export_overwrite(
-        self, options: ExportOptions, jobs: Optional[List[ExportJob]] = None
+        self, options: ExportOptions, jobs: list[ExportJob] | None = None
     ) -> bool:
         """Ask what to do when the export folder already holds images.
 
@@ -3064,7 +3070,7 @@ class MainWindow(QMainWindow):
         """
         extension = options.extension()
         base = Path(options.output_dir).expanduser()
-        folders: List[Path] = []
+        folders: list[Path] = []
         if base.is_dir():
             folders.append(base)
         if options.create_subfolder:
@@ -3108,7 +3114,7 @@ class MainWindow(QMainWindow):
             return True
         return False
 
-    def _start_export(self, jobs: List[ExportJob], options: ExportOptions) -> None:
+    def _start_export(self, jobs: list[ExportJob], options: ExportOptions) -> None:
         self._active_export_jobs = jobs
         self._export_errors = []
         self._busy = True
@@ -3209,7 +3215,8 @@ class MainWindow(QMainWindow):
         if card.thumbnail is not None:
             try:
                 card.thumbnail = rotate_image(card.thumbnail, int(degrees))
-            except Exception:
+            except (ValueError, cv2.error):
+                # If rotation fails (e.g., invalid image), keep the original thumbnail
                 pass
         self._selected_card_id = card_id
         self._gallery.update_card(card)
@@ -3375,7 +3382,8 @@ class MainWindow(QMainWindow):
             if card.rotation:
                 crop = rotate_image(crop, card.rotation)
             card.thumbnail = make_thumbnail(crop, int(self.settings.thumbnail_size))
-        except Exception:
+        except (ValueError, cv2.error, IndexError):
+            # If thumbnail generation fails (e.g., invalid quad, empty image), skip silently
             pass
 
     # --------------------------------------------------- add region (manual crop)
@@ -3688,19 +3696,20 @@ class MainWindow(QMainWindow):
                 subprocess.Popen(["open", str(path)])
             else:
                 subprocess.Popen(["xdg-open", str(path)])
-        except Exception:
+        except (OSError, FileNotFoundError, subprocess.SubprocessError):
+            # Best effort - opening the folder is a convenience, not critical
             pass
 
     # --------------------------------------------------------- drag and drop
-    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802 - Qt naming
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if self._event_has_pdf(event):
             event.acceptProposedAction()
 
-    def dragMoveEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def dragMoveEvent(self, event) -> None:
         if self._event_has_pdf(event):
             event.acceptProposedAction()
 
-    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802 - Qt naming
+    def dropEvent(self, event: QDropEvent) -> None:
         paths = self._dropped_pdf_paths(event)
         if not paths:
             return
@@ -3715,7 +3724,7 @@ class MainWindow(QMainWindow):
             )
 
     @staticmethod
-    def _dropped_pdf_paths(event) -> List[str]:
+    def _dropped_pdf_paths(event) -> list[str]:
         mime = event.mimeData()
         if not mime.hasUrls():
             return []
@@ -3754,7 +3763,7 @@ class MainWindow(QMainWindow):
                     worker.terminate()
                     worker.wait(3000)
 
-    def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+    def closeEvent(self, event) -> None:
         if self._busy:
             answer = QMessageBox.question(
                 self,

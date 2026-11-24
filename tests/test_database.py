@@ -14,9 +14,8 @@ import os
 from pathlib import Path
 
 import numpy as np
-import pytest
 
-from core.database import DetectedRegion, ProjectStore, STATUS_EXTRACTED
+from core.database import STATUS_EXTRACTED, DetectedRegion, ProjectStore
 from core.models import DetectedCard, DocumentType
 
 

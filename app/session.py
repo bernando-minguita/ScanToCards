@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from core.models import DetectedCard
 
@@ -15,7 +14,7 @@ class DocumentSession:
 
     path: Path
     page_count: int
-    cards: List[DetectedCard] = field(default_factory=list)
+    cards: list[DetectedCard] = field(default_factory=list)
     detected_pages: set = field(default_factory=set)
     dirty: bool = False
     # Password of an encrypted PDF - kept in memory only (for reopening the
@@ -36,16 +35,16 @@ class DocumentSession:
         return f"{self.name}  ·  {pages}"
 
     # -------------------------------------------------------------------- cards
-    def cards_for_page(self, page_index: int) -> List[DetectedCard]:
+    def cards_for_page(self, page_index: int) -> list[DetectedCard]:
         return [card for card in self.cards if card.page_index == page_index]
 
-    def included_cards(self) -> List[DetectedCard]:
+    def included_cards(self) -> list[DetectedCard]:
         return [card for card in self.cards if card.included]
 
     def add_card(self, card: DetectedCard) -> None:
         self.cards.append(card)
 
-    def find_card(self, card_id: str) -> Optional[DetectedCard]:
+    def find_card(self, card_id: str) -> DetectedCard | None:
         for card in self.cards:
             if card.card_id == card_id:
                 return card
@@ -63,7 +62,7 @@ class DocumentSession:
         self.cards = [card for card in self.cards if card.page_index != page_index]
 
     # ------------------------------------------------------------------- stats
-    def counts(self) -> Dict[str, int]:
+    def counts(self) -> dict[str, int]:
         detected = len(self.cards)
         approved = len(self.included_cards())
         return {"detected": detected, "approved": approved, "excluded": detected - approved}
