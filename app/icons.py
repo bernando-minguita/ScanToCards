@@ -20,7 +20,8 @@ BUTTON_ICON_SIZE = 18
 _PIXMAP_SIZES = (16, 18, 20, 22, 24, 32, 48)
 
 # Feather style icons, 24x24 view box, stroke only.
-_ICONS: dict[str, str] = {    "dashboard": '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
+_ICONS: dict[str, str] = {
+    "dashboard": '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
     '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     "extract": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>'
     '<path d="M8 15h5"/>',
@@ -114,7 +115,7 @@ def icon(
 ) -> QIcon:
     """Build a QIcon with normal and disabled variants.
 
-    Icons are expensive to build (7 sizes × 2 modes rendered from SVG), and the
+    Icons are expensive to build (7 sizes x 2 modes rendered from SVG), and the
     widgets request the same (name, colour) combination constantly - e.g. the
     toolbar rebuilds its icons on every page switch - so results are cached.
     """

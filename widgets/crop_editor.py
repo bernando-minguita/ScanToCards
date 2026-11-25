@@ -493,7 +493,7 @@ class CropEditorDialog(QDialog):
             rotation_text += f" + {self._draft.fine_rotation:.1f}°"
         self._preview_info.setText(
             f"{self._draft.doc_type.display_name} · "
-            f"{int(source_width * export_scale)} × {int(source_height * export_scale)} px "
+            f"{int(source_width * export_scale)} x {int(source_height * export_scale)} px "
             f"at {self._render_dpi} dpi · "
             f"rotation {rotation_text}"
         )

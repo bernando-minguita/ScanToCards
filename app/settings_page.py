@@ -55,9 +55,9 @@ if TYPE_CHECKING:
 # Physical sizes offered for "Add Region" (label, token, (width, height) in mm)
 REGION_PRESETS: tuple = (
     ("Free (use the drawn box)", "free", None),
-    ("ID card 85.6 × 54 mm", "id_card", (85.6, 53.98)),
-    ("Business card 90 × 55 mm", "business_card", (90.0, 55.0)),
-    ("Passport page 125 × 88 mm", "passport", (125.0, 88.0)),
+    ("ID card 85.6 x 54 mm", "id_card", (85.6, 53.98)),
+    ("Business card 90 x 55 mm", "business_card", (90.0, 55.0)),
+    ("Passport page 125 x 88 mm", "passport", (125.0, 88.0)),
     ("Custom…", "custom", None),
 )
 REGION_PRESET_TOKENS = tuple(token for _label, token, _size in REGION_PRESETS)
@@ -506,7 +506,10 @@ class SettingsPage(QWidget):
         name = self._preset_combo.currentData()
         if not name:
             return
-        if QMessageBox.question(self, "Delete preset", f"Delete export preset '{name}'?") != QMessageBox.StandardButton.Yes:
+        answer = QMessageBox.question(
+            self, "Delete preset", f"Delete export preset '{name}'?"
+        )
+        if answer != QMessageBox.StandardButton.Yes:
             return
         if self._mw.settings.delete_export_preset(name):
             self._refresh_presets()

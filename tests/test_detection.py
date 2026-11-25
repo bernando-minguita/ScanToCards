@@ -49,7 +49,7 @@ def test_detects_documents_on_an_image_file(tmp_path):
     ]
     assert len(cards) == 2, f"expected 2 documents on the image, detected {len(cards)}"
     for card in cards:
-        assert 0.05 < card.quad_norm.min() and card.quad_norm.max() < 0.98
+        assert card.quad_norm.min() > 0.05 and card.quad_norm.max() < 0.98
 
 
 def test_sample_pdf_is_readable(sample_pdf):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -44,7 +46,6 @@ from PySide6.QtWidgets import (
     QToolButton,
     QVBoxLayout,
     QWidget,
-    QDoubleSpinBox,
 )
 
 from app import styles
@@ -1713,7 +1714,14 @@ class MainWindow(QMainWindow):
         self._btn_export = QPushButton(icon("export"), " Export All")
         self._btn_export.clicked.connect(self.export_all)
 
-        for button in (self._btn_open, self._btn_add, self._btn_add_folder, self._btn_detect, self._btn_redetect, self._btn_export):
+        for button in (
+            self._btn_open,
+            self._btn_add,
+            self._btn_add_folder,
+            self._btn_detect,
+            self._btn_redetect,
+            self._btn_export,
+        ):
             button.setObjectName("ToolbarButton")
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             toolbar_layout.addWidget(button)
@@ -1786,7 +1794,7 @@ class MainWindow(QMainWindow):
             self._region_preset_combo.addItem(label, token)
         self._region_preset_combo.setToolTip(
             "Size of the region you draw with 'Add Region'\n"
-            "e.g. ID card 85.6 × 54 mm so the crop matches the document exactly"
+            "e.g. ID card 85.6 x 54 mm so the crop matches the document exactly"
         )
         self._region_preset_combo.currentIndexChanged.connect(self._on_region_preset_changed)
         # re-selecting "Custom…" while it is already current does not change the
@@ -2476,7 +2484,6 @@ class MainWindow(QMainWindow):
         # Save current session's regions before switching (if any)
         if self._session_index >= 0 and self._session_index < len(self._sessions):
             self._save_current_session_regions()
-        
         self._close_preview_document()
         self._selected_card_id = ""
         self._page_index = 0
@@ -2530,10 +2537,8 @@ class MainWindow(QMainWindow):
             return
         file_id = self._get_library_file_id(str(session.path))
         if file_id is not None:
-            try:
+            with contextlib.suppress(ProjectError):
                 store.set_active_file_and_page(file_id, self._page_index + 1)
-            except ProjectError:
-                pass
 
     def _close_preview_document(self) -> None:
         if self._preview_document is not None:
@@ -3224,11 +3229,8 @@ class MainWindow(QMainWindow):
         session.dirty = True
         self._mark_project_dirty()
         if card.thumbnail is not None:
-            try:
+            with contextlib.suppress(ValueError, cv2.error):
                 card.thumbnail = rotate_image(card.thumbnail, int(degrees))
-            except (ValueError, cv2.error):
-                # If rotation fails (e.g., invalid image), keep the original thumbnail
-                pass
         self._selected_card_id = card_id
         self._gallery.update_card(card)
         self._refresh_overlays()
@@ -3456,7 +3458,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_region_size_button"):
             if settings.manual_region_fixed_size:
                 self._region_size_button.setText(
-                    f"{settings.manual_region_width_mm:.1f} × "
+                    f"{settings.manual_region_width_mm:.1f} x "
                     f"{settings.manual_region_height_mm:.1f} mm"
                 )
                 self._region_size_button.setToolTip(
@@ -3465,13 +3467,13 @@ class MainWindow(QMainWindow):
             else:
                 self._region_size_button.setText("Size…")
                 self._region_size_button.setToolTip(
-                    "Give 'Add Region' a fixed physical size (e.g. ID card 85.6 × 54 mm)"
+                    "Give 'Add Region' a fixed physical size (e.g. ID card 85.6 x 54 mm)"
                 )
         if hasattr(self, "_btn_add_region"):
             if settings.manual_region_fixed_size:
                 self._btn_add_region.setToolTip(
                     "Draw a region; it is snapped to "
-                    f"{settings.manual_region_width_mm:.1f} × {settings.manual_region_height_mm:.1f} mm "
+                    f"{settings.manual_region_width_mm:.1f} x {settings.manual_region_height_mm:.1f} mm "
                     "(Esc to cancel)"
                 )
             else:
@@ -3651,7 +3653,7 @@ class MainWindow(QMainWindow):
         if fixed is not None:
             self._progress.set_message(
                 "Region added at "
-                f"{self.settings.manual_region_width_mm:.1f} × "
+                f"{self.settings.manual_region_width_mm:.1f} x "
                 f"{self.settings.manual_region_height_mm:.1f} mm"
             )
 

@@ -8,6 +8,7 @@ CLI.  It accepts PDF files (rendered with PyMuPDF) *and* raster images
 
 from __future__ import annotations
 
+import contextlib
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,7 +36,7 @@ IMAGE_SUFFIXES = (
     ".ppm",
     ".pgm",
 )
-SUPPORTED_SUFFIXES = (".pdf",) + IMAGE_SUFFIXES
+SUPPORTED_SUFFIXES = (".pdf", *IMAGE_SUFFIXES)
 # DPI assumed for an image that does not record its own resolution.
 DEFAULT_IMAGE_DPI = 300
 
@@ -176,10 +177,8 @@ class PdfDocument:
         self.close()
 
     def __del__(self) -> None:  # pragma: no cover - defensive cleanup
-        try:
+        with contextlib.suppress((OSError, RuntimeError)):
             self.close()
-        except (OSError, RuntimeError):
-            pass
 
     # ------------------------------------------------------------------ metadata
     @property
@@ -259,7 +258,12 @@ class PdfDocument:
             )
         page = self._page(index)
         rect = page.rect
-        return PageInfo(index=index, width_pt=float(rect.width), height_pt=float(rect.height), rotation=int(page.rotation))
+        return PageInfo(
+            index=index,
+            width_pt=float(rect.width),
+            height_pt=float(rect.height),
+            rotation=int(page.rotation),
+        )
 
 
     # ------------------------------------------------------------------ rendering

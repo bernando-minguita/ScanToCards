@@ -82,7 +82,7 @@ class HistoryStore:
         self._entries = []
         try:
             if self._path.exists():
-                with open(self._path, "r", encoding="utf-8") as handle:
+                with open(self._path, encoding="utf-8") as handle:
                     data = json.load(handle)
                 self._entries = [HistoryEntry.from_dict(item) for item in data.get("entries", [])]
         except (json.JSONDecodeError, OSError, KeyError, ValueError):

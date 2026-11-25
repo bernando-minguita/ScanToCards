@@ -19,6 +19,7 @@ network access in the application, and only when the user asks for it.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 import tempfile
@@ -183,8 +184,8 @@ def _get_detector():
             assert model is not None
             _detector = _create_yunet(model)
         else:
-            cascade_path = getattr(cv2, "data").haarcascades + "haarcascade_frontalface_default.xml"
-            cascade_cls = getattr(cv2, "CascadeClassifier")
+            cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+            cascade_cls = cv2.CascadeClassifier
             _detector = cascade_cls(cascade_path)
             if _detector.empty():
                 raise RuntimeError(f"Failed to load face cascade from {cascade_path}")
@@ -213,10 +214,8 @@ def _create_yunet(model_path: Path):
         )
     finally:
         if previous is not None and logging_api is not None:
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError):
                 logging_api.setLogLevel(previous)
-            except (AttributeError, RuntimeError):  # pragma: no cover - best effort only
-                pass
 
 
 def detect_faces(
@@ -244,7 +243,7 @@ def detect_faces(
         return boxes
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
-    found = getattr(detector, "detectMultiScale")(
+    found = detector.detectMultiScale(
         gray, scaleFactor=1.1, minNeighbors=5, minSize=(minimum, minimum)
     )
     return [(int(x), int(y), int(w), int(h)) for (x, y, w, h) in found]
@@ -282,10 +281,8 @@ def download_model(
         raise RuntimeError(f"could not download the face model: {exc}") from exc
     finally:
         if temp_name:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(temp_name)
-            except OSError:
-                pass
     clear_cache()
     return target
 

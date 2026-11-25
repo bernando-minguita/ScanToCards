@@ -120,7 +120,7 @@ _OCR_CONFUSIONS = str.maketrans(
         ":": " ",
     }
 )
-_NON_WORD = re.compile(r"[^A-ZА-Я0-9\u0600-\u06FF]+")
+_NON_WORD = re.compile(r"[^A-Z\u0410-\u042f0-9\u0600-\u06FF]+")
 
 FUZZY_THRESHOLD = 0.82
 
@@ -168,7 +168,8 @@ def keyword_score(prepared_text: str, keyword: str, threshold: float = FUZZY_THR
         window = text_tokens[start : start + window_size]
         for positions in itertools.combinations(range(window_size), span):
             score = sum(
-                _similar(window[position], key) for position, key in zip(positions, keyword_tokens)
+                _similar(window[position], key)
+                for position, key in zip(positions, keyword_tokens, strict=False)
             ) / span
             if score > best:
                 best = score
@@ -179,7 +180,8 @@ def keyword_score(prepared_text: str, keyword: str, threshold: float = FUZZY_THR
     if span == len(text_tokens):  # very short texts: also try a direct alignment
         best = max(
             best,
-            sum(_similar(word, key) for word, key in zip(text_tokens, keyword_tokens)) / span,
+            sum(_similar(word, key) for word, key in zip(text_tokens, keyword_tokens, strict=False))
+            / span,
         )
     return best if best >= threshold else 0.0
 

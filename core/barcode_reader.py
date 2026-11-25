@@ -116,7 +116,7 @@ class BarcodeReader:
         best = ""
         for r in results:
             txt = r.data.strip()
-            if self._looks_like_id(txt) and not best or not best and txt:
+            if (self._looks_like_id(txt) and not best) or (not best and txt):
                 best = txt
 
         return BarcodeReadout(barcodes=results, best_identifier=best)

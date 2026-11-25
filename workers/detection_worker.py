@@ -122,7 +122,13 @@ class DetectionWorker(QThread):
                         page_cards += 1
                         self.card_found.emit(card)
                     del working, page_image
-                except (PdfError, OSError, RuntimeError, ValueError, cv2.error) as exc:  # a broken page must not stop the batch
+                except (
+            PdfError,
+            OSError,
+            RuntimeError,
+            ValueError,
+            cv2.error,
+        ) as exc:  # a broken page must not stop the batch
                     self.failed.emit(f"Page {page_index + 1}: {exc}")
                 self.page_finished.emit(page_index, page_cards)
 
@@ -203,10 +209,7 @@ class DetectionWorker(QThread):
         read_by_ocr = False
         if classifier is not None:
             try:
-                if ocr_engine is None or self._cancel_requested:
-                    text = ""
-                else:
-                    text = ocr_engine.read(upright).text
+                text = "" if ocr_engine is None or self._cancel_requested else ocr_engine.read(upright).text
                 read_by_ocr = bool(text.strip())
                 card.ocr_text = text or ""
                 result = classifier.classify(

@@ -293,7 +293,15 @@ class ImageExporter:
                 )
                 sequence += 1
                 del image
-            except (PdfError, OSError, RuntimeError, ValueError, cv2.error, MemoryError, UnidentifiedImageError) as exc:  # report per-file errors and keep going
+            except (
+            PdfError,
+            OSError,
+            RuntimeError,
+            ValueError,
+            cv2.error,
+            MemoryError,
+            UnidentifiedImageError,
+        ) as exc:  # report per-file errors and keep going
                 summary.files.append(
                     ExportedFile(
                         path=output_dir,

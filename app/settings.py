@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -39,10 +40,8 @@ def _migrate_legacy_folder(folder: Path) -> None:
     legacy = folder.parent / LEGACY_APP_FOLDER_NAME
     if legacy == folder or not legacy.is_dir():
         return
-    try:
+    with contextlib.suppress((OSError, shutil.Error)):
         shutil.move(str(legacy), str(folder))
-    except (OSError, shutil.Error):
-        pass
 
 
 def _config_folder() -> Path:
@@ -89,10 +88,8 @@ def _write_json_atomic(path: Path, data: Any) -> bool:
                 json.dump(data, file_handle, indent=2)
             os.replace(temp_name, path)
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(temp_name)
-            except OSError:
-                pass
             raise
     except (OSError, json.JSONDecodeError, ValueError):
         return False
@@ -206,7 +203,7 @@ class AppSettings:
         path = settings_path()
         try:
             if path.exists():
-                with open(path, "r", encoding="utf-8") as handle:
+                with open(path, encoding="utf-8") as handle:
                     settings = cls.from_dict(json.load(handle))
                     settings.apply_document_types()
                     return settings

@@ -500,10 +500,12 @@ def test_classifier_uses_custom_keywords():
 
 def test_classifier_recognises_the_new_builtin_types():
     classifier = DocumentClassifier()
-    assert classifier.classify(ocr_text="BUPA HEALTH INSURANCE CARD POLICY 123").doc_type is DocumentType.HEALTH_INSURANCE
+    result = classifier.classify(ocr_text="BUPA HEALTH INSURANCE CARD POLICY 123")
+    assert result.doc_type is DocumentType.HEALTH_INSURANCE
     assert classifier.classify(ocr_text="AL RAJHI BANK CARD DEBIT").doc_type is DocumentType.BANK_CARD
     assert classifier.classify(ocr_text="SALARY CARD ACCOUNT 1234").doc_type is DocumentType.SALARY_CARD
-    assert classifier.classify(ocr_text="KINGDOM OF SAUDI ARABIA NATIONAL ID 1023456789").doc_type is DocumentType.NATIONAL_ID
+    result = classifier.classify(ocr_text="KINGDOM OF SAUDI ARABIA NATIONAL ID 1023456789")
+    assert result.doc_type is DocumentType.NATIONAL_ID
 
 
 def test_disabled_type_is_not_assigned_by_the_classifier():
@@ -545,7 +547,8 @@ def test_card_roundtrip_serialisation():
 
 def test_classifier_recognises_keywords():
     classifier = DocumentClassifier()
-    assert classifier.classify(ocr_text="KINGDOM OF SAUDI ARABIA DRIVING LICENSE").doc_type is DocumentType.DRIVING_LICENSE
+    result = classifier.classify(ocr_text="KINGDOM OF SAUDI ARABIA DRIVING LICENSE")
+    assert result.doc_type is DocumentType.DRIVING_LICENSE
     assert classifier.classify(ocr_text="RESIDENT IDENTITY IQAMA").doc_type is DocumentType.IQAMA
     assert classifier.classify(ocr_text="VEHICLE REGISTRATION").doc_type is DocumentType.ISTIMARA
     assert classifier.classify(ocr_text="PASSPORT NO WE4110283").doc_type is DocumentType.PASSPORT
@@ -1184,7 +1187,12 @@ def test_effective_dpi_never_upscales_beyond_native():
 
 def test_refine_identifier_uses_barcode_values():
     """QR/barcode contents override OCR regex identifiers when they look like IDs."""
-    from core.barcode_reader import BarcodeReadout, BarcodeResult, BarcodeReader, refine_identifier
+    from core.barcode_reader import (
+        BarcodeReader,
+        BarcodeReadout,
+        BarcodeResult,
+        refine_identifier,
+    )
 
     class _FakeReader(BarcodeReader):
         def __init__(self, best=""):

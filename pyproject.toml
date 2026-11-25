@@ -1,0 +1,57 @@
+[project]
+name = "scantocards"
+version = "1.0.1"
+description = "ScanToCards - extract document cards from scanned PDF files and images."
+requires-python = ">=3.14"
+dependencies = [
+    "PySide6-Essentials>=6.5",
+    "opencv-python-headless>=4.8",
+    "numpy>=1.24",
+    "PyMuPDF>=1.24",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-qt>=4.4",
+    "pytest-cov>=4.0",
+    "ruff>=0.8",
+    "mypy>=1.8",
+]
+ocr = [
+    "pytesseract>=0.3.10",
+    "easyocr>=1.7",
+    "pyzbar>=0.1.9",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+src = ["."]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP", "BLE", "SIM", "RUF", "S110"]
+fixable = ["ALL"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["builtins.frozenset"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v"

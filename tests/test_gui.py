@@ -583,7 +583,7 @@ def test_add_region_uses_the_identity_card_size(window, sample_pdf):
     session = window.session
     before = len(session.cards)
 
-    index = window._region_preset_combo.findText("ID card 85.6 × 54 mm")
+    index = window._region_preset_combo.findText("ID card 85.6 x 54 mm")
     assert index > 0
     window._region_preset_combo.setCurrentIndex(index)  # id card preset
     QApplication.processEvents()
@@ -838,7 +838,7 @@ def test_size_button_opens_the_dialog_even_when_custom_is_already_selected(windo
         buttons.button(QDialogButtonBox.StandardButton.Ok).click()
 
     QTimer.singleShot(150, fill_dialog)
-    window._region_size_button.click()  # "<w> × <h> mm" button
+    window._region_size_button.click()  # "<w> x <h> mm" button
     flush_events()
 
     assert window.settings.manual_region_preset == "custom"
@@ -1461,7 +1461,7 @@ def test_edit_keywords_dialog_adds_keywords_to_a_builtin_type(window, monkeypatc
             assert dialogs, "the keyword dialog did not open"
             editor = dialogs[0].findChild(QPlainTextEdit)
             assert editor is not None
-            editor.setPlainText("PASSEPORT\nجواز سفر")
+            editor.setPlainText("PASSEPORT\n\\u062c\u0648\u0627\u0632 \u0633\u0641\u0631")
             dialogs[0].accept()
 
         QTimer.singleShot(150, fill)

@@ -315,7 +315,9 @@ class DocumentType:
 
 DocumentType.PASSPORT = DocumentType.register("passport", "Passport", "Passport", builtin=True)
 DocumentType.IQAMA = DocumentType.register("iqama", "Iqama", "Iqama", builtin=True)
-DocumentType.ISTIMARA = DocumentType.register("vehicle_registration", "Vehicle Registration", "VehicleRegistration", builtin=True)
+DocumentType.ISTIMARA = DocumentType.register(
+    "vehicle_registration", "Vehicle Registration", "VehicleRegistration", builtin=True
+)
 DocumentType.DRIVING_LICENSE = DocumentType.register(
     "driving_license", "Driver's License", "DriversLicense", builtin=True
 )
@@ -450,10 +452,11 @@ class DetectedCard:
     def aspect_ratio(self) -> float:
         """Long edge / short edge of the card quad (always ``>= 1``)."""
         width, height = self.page_size if self.page_size else (0, 0)
-        if width and height:
-            quad = self.quad_pixels(int(width), int(height))
-        else:
-            quad = self.quad_norm
+        quad = (
+            self.quad_pixels(int(width), int(height))
+            if width and height
+            else self.quad_norm
+        )
         widths = (_dist(quad[0], quad[1]), _dist(quad[3], quad[2]))
         heights = (_dist(quad[0], quad[3]), _dist(quad[1], quad[2]))
         long_edge = max(max(widths), max(heights))

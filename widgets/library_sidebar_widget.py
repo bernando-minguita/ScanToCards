@@ -300,7 +300,8 @@ class LibrarySidebarWidget(QWidget):
             return
         self.refresh()
         if changes:
-            self.message.emit(f"{changes} library entr" + ("y changed status" if changes == 1 else "ies changed status"))
+            status_text = "y changed status" if changes == 1 else "ies changed status"
+            self.message.emit(f"{changes} library entr{status_text}")
         else:
             self.message.emit("Library statuses are up to date")
 

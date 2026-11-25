@@ -19,6 +19,7 @@ so the copy is always consistent) and continues to work on that file.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 import tempfile
@@ -261,10 +262,8 @@ class ProjectDatabase:
     def close(self) -> None:
         connection, self._conn = self._conn, None
         if connection is not None:
-            try:
+            with contextlib.suppress(sqlite3.Error):
                 connection.close()
-            except sqlite3.Error:
-                pass
 
     def _verify_schema(self) -> None:
         """Refuse anything that is not a project file (never create tables in it)."""
@@ -422,10 +421,8 @@ class ProjectDatabase:
                 )
                 self.connection.execute("COMMIT")
             except sqlite3.Error:
-                try:
+                with contextlib.suppress(sqlite3.Error):
                     self.connection.execute("ROLLBACK")
-                except sqlite3.Error:
-                    pass
 
     # ---------------------------------------------------------------- backups
     def backup_to(self, target: Path) -> None:
@@ -445,10 +442,8 @@ class ProjectDatabase:
                 destination.close()
             os.replace(temp_name, target)
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(temp_name)
-            except OSError:
-                pass
             raise
 
 
@@ -622,7 +617,8 @@ class ProjectStore:
             try:
                 cursor = self._db.connection.execute(
                     "INSERT OR IGNORE INTO library_items "
-                    "(project_id, file_path, relative_path, file_name, file_size, status, added_at, page_count, sort_order) "
+                    "(project_id, file_path, relative_path, file_name, file_size, "
+                    "status, added_at, page_count, sort_order) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (self._project_id, str(path), rel_path, path.name, size, STATUS_PENDING, now, page_count, max_sort),
                 )
@@ -783,10 +779,8 @@ class ProjectStore:
                 )
             self._db.connection.execute("COMMIT")
         except sqlite3.Error as exc:
-            try:
+            with contextlib.suppress(sqlite3.Error):
                 self._db.connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
             raise ProjectError(f"Cannot save detected regions:\n{exc}") from exc
 
     def load_regions(self, file_id: int, page_num: int) -> list[DetectedRegion]:
