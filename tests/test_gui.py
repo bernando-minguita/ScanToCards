@@ -464,24 +464,20 @@ def test_reopening_an_open_pdf_from_the_dashboard_shows_the_workspace(window, sa
     assert window._nav_buttons[1].isChecked()
 
 
-def test_document_type_list_shows_builtin_and_custom(window):
+def test_document_type_list_shows_builtin_and_custom(window, monkeypatch):
     """Every type must appear as a tile and be labelled built-in / custom."""
     from PySide6.QtWidgets import QInputDialog
 
     from core.models import DocumentType
 
-    original = QInputDialog.getText
     answers = iter([("Membership Card", True), ("MEMBERSHIP", True)])
 
     def fake_get_text(*_args, **_kwargs):
         return next(answers)
 
-    try:
-        QInputDialog.getText = staticmethod(fake_get_text)
-        window._switch_page(3)
-        window._add_document_type()
-    finally:
-        QInputDialog.getText = original
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(fake_get_text))
+    window._switch_page(3)
+    window._add_document_type()
 
     try:
         cells = window._type_cells
@@ -1186,7 +1182,9 @@ def test_saving_an_export_preset_writes_the_settings_file(window, monkeypatch, t
     assert settings_file.exists(), "saving a preset did not write settings.json"
     reloaded = settings_module.AppSettings.load()
     assert reloaded.export_preset_names() == ["Scans"]
-    assert reloaded.get_export_preset("Scans").image_format == "png"
+    preset = reloaded.get_export_preset("Scans")
+    assert preset is not None
+    assert preset.image_format == "png"
 
     window._preset_combo.setCurrentIndex(window._preset_combo.findData("Scans"))
     window._settings_page._delete_preset()
@@ -1497,20 +1495,20 @@ def test_crop_editor_shows_the_ocr_text(window, sample_pdf):
         dialog.accept()
 
 
-def test_custom_type_added_in_settings_is_usable(window, sample_pdf):
+def test_custom_type_added_in_settings_is_usable(window, sample_pdf, monkeypatch):
     """A type added on the settings page appears in the combo and names the file."""
     from PySide6.QtWidgets import QInputDialog
 
     from core.models import DocumentType
 
-    original_get_text = QInputDialog.getText
     answers = iter([("Work Permit", True), ("WORK PERMIT", True)])
-    QInputDialog.getText = staticmethod(lambda *args, **kwargs: next(answers))
-    try:
-        window._switch_page(3)
-        window._add_document_type()
-    finally:
-        QInputDialog.getText = original_get_text
+    monkeypatch.setattr(
+        QInputDialog,
+        "getText",
+        staticmethod(lambda *args, **kwargs: next(answers)),
+    )
+    window._switch_page(3)
+    window._add_document_type()
 
     try:
         tokens_in_grid = list(window._type_cells)

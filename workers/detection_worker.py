@@ -183,12 +183,14 @@ class DetectionWorker(QThread):
         if bool(getattr(settings, "auto_orientation", True)):
             use_ocr = bool(getattr(settings, "ocr_for_orientation", False)) and ocr_engine is not None
             if use_ocr:
-                def reader(image):
+                assert ocr_engine is not None
+
+                def reader(image, _engine=ocr_engine):
                     if self._cancel_requested:
                         # OrientationDetector catches this and falls back to
                         # the heuristic instead of starting another OCR read.
                         raise RuntimeError("cancelled")
-                    return ocr_engine.read(image)
+                    return _engine.read(image)
 
                 result = orientation.detect(crop, ocr_reader=reader, allow_ocr=True)
             else:

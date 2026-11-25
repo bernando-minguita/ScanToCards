@@ -483,7 +483,7 @@ class ProjectStore:
         except sqlite3.Error as exc:
             database.close()
             raise ProjectError(f"Cannot create the project:\n{exc}") from exc
-        return cls(database, int(cursor.lastrowid), project_file=path)
+        return cls(database, int(cursor.lastrowid or 0), project_file=path)
 
     @classmethod
     def open(cls, path: str | Path) -> ProjectStore:
@@ -638,12 +638,12 @@ class ProjectStore:
             self._db.connection.execute(
                 "UPDATE detected_regions SET file_id = ? "
                 "WHERE canonical_path = ? AND file_id IS NULL",
-                (int(cursor.lastrowid), canonical),
+                (int(cursor.lastrowid or 0), canonical),
             )
             existing.add(key)
             added.append(
                 LibraryItem(
-                    id=int(cursor.lastrowid),
+                    id=int(cursor.lastrowid or 0),
                     project_id=self._project_id,
                     file_path=str(path),
                     file_name=path.name,

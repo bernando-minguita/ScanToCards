@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import cast
 
 import cv2
 import numpy as np
@@ -183,7 +184,7 @@ class CardDetector:
             quad = cv2.boxPoints(rect).astype(np.float32)
         if not _is_convex_quad(quad):
             return None
-        return order_quad_points(quad)
+        return order_quad_points(quad.tolist())
 
     def _score_candidate(
         self,
@@ -333,7 +334,7 @@ class CardDetector:
             return quad
         if np.max(np.linalg.norm(refined_quad - quad, axis=1)) > 3.0 * max_shift:
             return quad
-        return order_quad_points(refined_quad)
+        return order_quad_points(cast(list[list[float]], refined_quad.tolist()))
 
     # ------------------------------------------------------------------ merging
     def _expand_merged(self, candidates: Sequence[Candidate]) -> list[Candidate]:

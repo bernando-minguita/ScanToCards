@@ -220,6 +220,7 @@ def test_missing_source_file_and_relink(temp_project_path, tmp_path):
                            canonical_path=str(real_file).lower())
     store.save_regions(file_id, 1, regions)
     saved_path = store.project_file
+    assert saved_path is not None
     store.close()
 
     # Move the source file on disk (simulate user relocating the PDF)

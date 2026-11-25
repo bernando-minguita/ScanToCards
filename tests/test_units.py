@@ -1184,11 +1184,11 @@ def test_effective_dpi_never_upscales_beyond_native():
 
 def test_refine_identifier_uses_barcode_values():
     """QR/barcode contents override OCR regex identifiers when they look like IDs."""
-    from core.barcode_reader import BarcodeReadout, BarcodeResult, refine_identifier
+    from core.barcode_reader import BarcodeReadout, BarcodeResult, BarcodeReader, refine_identifier
 
-    class _FakeReader:
+    class _FakeReader(BarcodeReader):
         def __init__(self, best=""):
-            self.is_available = True
+            self._available = True
             self._best = best
 
         def read(self, image):
@@ -1220,7 +1220,7 @@ def test_refine_identifier_uses_barcode_values():
 
     # An unavailable reader must not touch the identifier.
     offline = _FakeReader("2567251562")
-    offline.is_available = False
+    offline._available = False
     assert refine_identifier(card, image, offline) is False
     assert card.identifier == "GOOD123456"
 

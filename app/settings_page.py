@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import urllib.error
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import Qt
@@ -32,7 +33,6 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
-    QMainWindow,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -48,6 +48,9 @@ from app.settings import AppSettings, settings_path
 from core.image_exporter import ExportOptions
 from core.models import DetectedCard, DocumentType
 from core.ocr_engine import OcrEngine
+
+if TYPE_CHECKING:
+    from app.main_window import MainWindow
 
 # Physical sizes offered for "Add Region" (label, token, (width, height) in mm)
 REGION_PRESETS: tuple = (
@@ -108,7 +111,9 @@ class SettingsPage(QWidget):
         "_type_grid",
     )
 
-    def __init__(self, main_window: QMainWindow, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, main_window: MainWindow, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._mw = main_window
         self._suppress_preset_sync = False

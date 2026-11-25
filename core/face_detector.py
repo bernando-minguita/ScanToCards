@@ -180,10 +180,12 @@ def _get_detector():
         return "", None
     if _detector is None or _detector_path != model:
         if backend == "yunet":
+            assert model is not None
             _detector = _create_yunet(model)
         else:
-            cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-            _detector = cv2.CascadeClassifier(cascade_path)
+            cascade_path = getattr(cv2, "data").haarcascades + "haarcascade_frontalface_default.xml"
+            cascade_cls = getattr(cv2, "CascadeClassifier")
+            _detector = cascade_cls(cascade_path)
             if _detector.empty():
                 raise RuntimeError(f"Failed to load face cascade from {cascade_path}")
         _detector_path = model
@@ -210,7 +212,7 @@ def _create_yunet(model_path: Path):
             str(model_path), "", (320, 320), SCORE_THRESHOLD, NMS_THRESHOLD, TOP_K
         )
     finally:
-        if previous is not None:
+        if previous is not None and logging_api is not None:
             try:
                 logging_api.setLogLevel(previous)
             except (AttributeError, RuntimeError):  # pragma: no cover - best effort only
@@ -242,7 +244,7 @@ def detect_faces(
         return boxes
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
-    found = detector.detectMultiScale(
+    found = getattr(detector, "detectMultiScale")(
         gray, scaleFactor=1.1, minNeighbors=5, minSize=(minimum, minimum)
     )
     return [(int(x), int(y), int(w), int(h)) for (x, y, w, h) in found]

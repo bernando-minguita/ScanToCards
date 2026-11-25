@@ -380,8 +380,8 @@ class OcrEngine:
         confidences: list[float] = []
         for entry in raw:
             try:
-                box, text, confidence = entry[0], entry[1], entry[2]
-            except (IndexError, TypeError):
+                box, text, confidence = entry
+            except (IndexError, TypeError, ValueError):
                 continue
             text = (text or "").strip()
             if not text:

@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
     QToolButton,
     QVBoxLayout,
     QWidget,
+    QDoubleSpinBox,
 )
 
 from app import styles
@@ -119,6 +120,14 @@ TYPE_COLORS = {
 
 class MainWindow(QMainWindow):
     """Everything the user interacts with."""
+
+    #: Widgets created by SettingsPage and mirrored onto this window via
+    #: ``PASSTHROUGH_HANDLES``. Declared here so type checkers see them as
+    #: known attributes even though they are assigned with ``setattr``.
+    _set_region_preset: QComboBox | None = None
+    _set_region_fixed: QCheckBox | None = None
+    _set_region_width: QDoubleSpinBox | None = None
+    _set_region_height: QDoubleSpinBox | None = None
 
     def __init__(self, settings: AppSettings | None = None) -> None:
         super().__init__()
@@ -857,7 +866,7 @@ class MainWindow(QMainWindow):
         set_enabled("prev_page", has_pages and self._page_index > 0 and not busy)
         set_enabled(
             "next_page",
-            has_pages and self._page_index < session.page_count - 1 and not busy,
+            session is not None and has_pages and self._page_index < session.page_count - 1 and not busy,
         )
         set_enabled("zoom_in", has_pages)
         set_enabled("zoom_out", has_pages)
@@ -3206,6 +3215,8 @@ class MainWindow(QMainWindow):
     def rotate_card(self, card_id: str, degrees: int) -> None:
         session = self.session
         card = session.find_card(card_id) if session else None
+        if session is None:
+            return
         if card is None:
             return
         card.rotation = (card.rotation + int(degrees)) % 360
@@ -3232,6 +3243,8 @@ class MainWindow(QMainWindow):
     def set_card_type(self, card_id: str, doc_type) -> None:
         session = self.session
         card = session.find_card(card_id) if session else None
+        if session is None:
+            return
         if card is None:
             return
         card.set_type(doc_type, 1.0)
@@ -3249,6 +3262,8 @@ class MainWindow(QMainWindow):
     def toggle_card_included(self, card_id: str) -> None:
         session = self.session
         card = session.find_card(card_id) if session else None
+        if session is None:
+            return
         if card is None:
             return
         card.included = not card.included
@@ -3368,17 +3383,18 @@ class MainWindow(QMainWindow):
     def _flush_thumbnails(self) -> None:
         card = self._thumb_pending
         self._thumb_pending = None
-        if card is None or self._page_image is None or card.page_index != self._page_index:
+        page_image = self._page_image
+        if card is None or page_image is None or card.page_index != self._page_index:
             return
-        self._rebuild_thumbnail_now(card)
+        self._rebuild_thumbnail_now(card, page_image)
         # repaint the gallery tile now that the thumbnail really changed
         self._gallery.update_card(card)
 
-    def _rebuild_thumbnail_now(self, card: DetectedCard) -> None:
+    def _rebuild_thumbnail_now(self, card: DetectedCard, page_image: np.ndarray) -> None:
         try:
-            height, width = self._page_image.shape[:2]
+            height, width = page_image.shape[:2]
             quad = card.effective_quad_pixels(width, height)
-            crop = warp_quad(self._page_image, quad)
+            crop = warp_quad(page_image, quad)
             if card.rotation:
                 crop = rotate_image(crop, card.rotation)
             card.thumbnail = make_thumbnail(crop, int(self.settings.thumbnail_size))
@@ -3415,7 +3431,12 @@ class MainWindow(QMainWindow):
             self._region_preset_combo.blockSignals(True)
             self._region_preset_combo.setCurrentIndex(index)
             self._region_preset_combo.blockSignals(False)
-        if hasattr(self, "_set_region_preset"):
+        if (
+            self._set_region_preset is not None
+            and self._set_region_fixed is not None
+            and self._set_region_width is not None
+            and self._set_region_height is not None
+        ):
             self._set_region_preset.blockSignals(True)
             self._set_region_preset.setCurrentIndex(index)
             self._set_region_preset.blockSignals(False)
@@ -3527,7 +3548,7 @@ class MainWindow(QMainWindow):
         self._sync_region_controls()
 
     def _on_region_dimensions_changed(self, _value: float) -> None:
-        if not hasattr(self, "_set_region_width"):
+        if self._set_region_width is None or self._set_region_height is None:
             return
         width = float(self._set_region_width.value())
         height = float(self._set_region_height.value())
@@ -3637,6 +3658,8 @@ class MainWindow(QMainWindow):
     def _on_quad_edited(self, card_id: str, quad_norm) -> None:
         session = self.session
         card = session.find_card(card_id) if session else None
+        if session is None:
+            return
         if card is None:
             return
         # the view always reports the *displayed* quad, so a fine rotation is

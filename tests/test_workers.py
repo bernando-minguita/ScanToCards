@@ -8,7 +8,9 @@ paths) can be checked without a GUI.
 
 from __future__ import annotations
 
-from core.image_exporter import ExportOptions
+import numpy as np
+
+from core.image_exporter import ExportOptions, ExportSummary
 from core.models import DetectedCard
 from workers.detection_worker import DetectionWorker, ocr_report
 from workers.export_worker import ExportJob, ExportWorker
@@ -16,12 +18,12 @@ from workers.export_worker import ExportJob, ExportWorker
 
 def _card(page_index: int = 0, **kwargs) -> DetectedCard:
     quad = [[0.05, 0.05], [0.40, 0.05], [0.40, 0.40], [0.05, 0.40]]
-    return DetectedCard(page_index=page_index, quad_norm=quad, **kwargs)
+    return DetectedCard(page_index=page_index, quad_norm=np.asarray(quad, dtype=np.float32), **kwargs)
 
 
 def test_export_worker_names_the_first_file_001(synthetic_pdf, tmp_path, qapp):
     """Regression: the first exported file must be numbered _001, not _002."""
-    collector: list[object] = []
+    collector: list[ExportSummary] = []
     worker = ExportWorker(
         [ExportJob(synthetic_pdf, [_card(source="a"), _card(source="b")])],
         ExportOptions(output_dir=str(tmp_path), image_format="png"),
@@ -38,7 +40,7 @@ def test_export_worker_names_the_first_file_001(synthetic_pdf, tmp_path, qapp):
 
 def test_export_worker_sequences_continuously_across_jobs(synthetic_pdf, tmp_path, qapp):
     """Two export jobs in one run must not restart or skip the numbering."""
-    collector: list[object] = []
+    collector: list[ExportSummary] = []
     job_one = ExportJob(synthetic_pdf, [_card()])
     job_two = ExportJob(synthetic_pdf, [_card(), _card()])
     worker = ExportWorker(
@@ -72,7 +74,7 @@ def test_export_worker_cancelled_before_run_writes_nothing(synthetic_pdf, tmp_pa
 def test_export_worker_ignores_excluded_cards(synthetic_pdf, tmp_path, qapp):
     excluded = _card()
     excluded.included = False
-    collector: list[object] = []
+    collector: list[ExportSummary] = []
     worker = ExportWorker(
         [ExportJob(synthetic_pdf, [excluded, _card()])],
         ExportOptions(output_dir=str(tmp_path), image_format="png"),
@@ -91,7 +93,7 @@ def test_export_worker_reports_a_skipped_face_blur_once(synthetic_pdf, tmp_path,
     reason = "face blur needs OpenCV's Haar cascade"
     monkeypatch.setattr(image_exporter, "face_blur_support", lambda: (False, reason))
 
-    collector: list[object] = []
+    collector: list[ExportSummary] = []
     worker = ExportWorker(
         [ExportJob(synthetic_pdf, [_card(), _card()])],
         ExportOptions(output_dir=str(tmp_path), image_format="png", blur_faces=True),
@@ -123,13 +125,17 @@ def test_export_worker_reports_a_broken_file_as_an_error(tmp_path, qapp):
     assert len(finished) == 1  # the run itself still finished
 
 
-def test_ocr_report_summary_states():
+def test_ocr_report_summary_states() -> None:
+    from typing import cast
+
+    from core.ocr_engine import OcrEngine
+
     class _Engine:
         backend = "tesseract"
 
     assert ocr_report(None, 0, 0) == ""
-    assert ocr_report(_Engine(), 0, 0) == "tesseract"
-    assert ocr_report(_Engine(), 3, 4) == "tesseract (3/4 cards read)"
+    assert ocr_report(cast(OcrEngine, _Engine()), 0, 0) == "tesseract"
+    assert ocr_report(cast(OcrEngine, _Engine()), 3, 4) == "tesseract (3/4 cards read)"
 
 
 def test_detection_worker_cancelled_before_run(synthetic_pdf, qapp):
